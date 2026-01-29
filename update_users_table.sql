@@ -1,0 +1,5 @@
+USE helpify_db;
+
+ALTER TABLE users 
+ADD COLUMN google_id VARCHAR(255) NULL AFTER email,
+MODIFY COLUMN password VARCHAR(255) NULL;
