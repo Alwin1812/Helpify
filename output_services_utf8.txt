@@ -1,0 +1,9 @@
+﻿ID: 1, Name: InstaHelp, Icon: cleaning_services
+ID: 2, Name: Women's Salon & Spa, Icon: face_3
+ID: 3, Name: Men's Salon & Massage, Icon: face
+ID: 4, Name: Cleaning & Pest Control, Icon: bug_report
+ID: 5, Name: Electrician, Plumber & Carpenter, Icon: handyman
+ID: 6, Name: Native Water Purifier, Icon: water_drop
+ID: 7, Name: Painting & Waterproofing, Icon: format_paint
+ID: 8, Name: AC & Appliance Repair, Icon: ac_unit
+ID: 9, Name: Wall makeover by Revamp, Icon: wallpaper

@@ -18,9 +18,25 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/home_redesign.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
+        /* Validation Styles */
+        .form-control.invalid {
+            border-color: #EF4444 !important;
+        }
 
+        .form-control.valid {
+            border-color: #10B981 !important;
+        }
+
+        .error-message {
+            color: #EF4444;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+            font-weight: 500;
+        }
     </style>
     <script>
         function selectRole(role) {
@@ -45,13 +61,23 @@ try {
 </head>
 
 <body>
-    <header>
-        <div class="container flex justify-between items-center" style="height: 100%;">
-            <a href="index.php" class="logo">Helpify</a>
-            <nav class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="login.php">Sign In</a>
-            </nav>
+    <header class="uc-header">
+        <div class="header-container">
+            <div class="header-left">
+                <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                    <span
+                        style="background: black; color: white; padding: 4px 8px; border-radius: 6px; margin-right: 8px; font-weight: 700; font-size: 1.1rem; line-height: 1;">HF</span>
+                    <span
+                        style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <nav class="nav-links">
+                    <a href="index.php" style="font-weight: 600;">Home</a>
+                    <a href="login.php" class="btn btn-primary" style="padding: 0.5rem 1.5rem; color: white;">Sign
+                        In</a>
+                </nav>
+            </div>
         </div>
     </header>
 
@@ -82,17 +108,23 @@ try {
 
                     <div class="input-group">
                         <label>Full Name</label>
-                        <input type="text" name="name" placeholder="Enter your full name" required>
+                        <input type="text" name="name" id="regName" placeholder="Enter your full name" required
+                            oninput="validateRegField(this)" class="form-control">
+                        <div class="error-message">Name is required.</div>
                     </div>
 
                     <div class="input-group">
                         <label>Email Address</label>
-                        <input type="email" name="email" placeholder="Enter your email" required>
+                        <input type="email" name="email" id="regEmail" placeholder="Enter your email" required
+                            oninput="validateRegField(this)" class="form-control">
+                        <div class="error-message">Please enter a valid email.</div>
                     </div>
 
                     <div class="input-group">
                         <label>Password</label>
-                        <input type="password" name="password" placeholder="Create a password" required minlength="6">
+                        <input type="password" name="password" id="regPassword" placeholder="Create a password" required
+                            minlength="6" oninput="validateRegField(this)" class="form-control">
+                        <div class="error-message">Password must be at least 6 characters.</div>
                     </div>
 
                     <!-- Job Role Selection (Hidden by default) -->
@@ -103,9 +135,13 @@ try {
                                 style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; background: #fff;">
                                 <option value="" disabled selected>Select your job category...</option>
                                 <?php
-                                $roles = ['Cleaning', 'Cooking', 'Babysitting', 'Elderly Care'];
-                                foreach ($roles as $roleOption) {
-                                    echo '<option value="' . htmlspecialchars($roleOption) . '">' . htmlspecialchars($roleOption) . '</option>';
+                                if (!empty($services)) {
+                                    foreach ($services as $service) {
+                                        echo '<option value="' . htmlspecialchars($service['name']) . '">' . htmlspecialchars($service['name']) . '</option>';
+                                    }
+                                } else {
+                                    // Fallback if services not loaded
+                                    echo '<option value="Cleaning">Cleaning</option>';
                                 }
                                 ?>
                             </select>
@@ -166,6 +202,52 @@ try {
                                     googleBtn.href = baseGoogleUrl + '&state=' + role;
                                 }
                             }
+
+                            function validateRegField(input) {
+                                const errorEl = input.nextElementSibling;
+                                let isValid = true;
+                                let message = "";
+
+                                if (input.required && !input.value.trim()) {
+                                    isValid = false;
+                                    message = "This field is required.";
+                                } else if (input.type === 'email') {
+                                    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                                    if (!re.test(input.value)) {
+                                        isValid = false;
+                                        message = "Please enter a valid email address.";
+                                    }
+                                } else if (input.type === 'password' && input.value.length < 6) {
+                                    isValid = false;
+                                    message = "Password must be at least 6 characters.";
+                                }
+
+                                if (!isValid) {
+                                    input.classList.add('invalid');
+                                    input.classList.remove('valid');
+                                    if (errorEl) {
+                                        errorEl.textContent = message;
+                                        errorEl.style.display = 'block';
+                                    }
+                                } else {
+                                    input.classList.remove('invalid');
+                                    input.classList.add('valid');
+                                    if (errorEl) errorEl.style.display = 'none';
+                                }
+                                return isValid;
+                            }
+
+                            document.querySelector('form').addEventListener('submit', function (e) {
+                                const inputs = this.querySelectorAll('input[required]');
+                                let allValid = true;
+                                inputs.forEach(input => {
+                                    if (!validateRegField(input)) allValid = false;
+                                });
+                                if (!allValid) {
+                                    e.preventDefault();
+                                    alert("Please correct the errors in the form.");
+                                }
+                            });
                         </script>
                     <?php } else { ?>
                         <a href="#"

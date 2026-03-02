@@ -78,6 +78,9 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
     <title>User Dashboard - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         .modal {
             display: none;
@@ -158,18 +161,86 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         .star-rating label:hover~label {
             color: #f59e0b;
         }
+
+        #map {
+            height: 200px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+        }
+
+        .location-container {
+            position: relative;
+        }
+
+        .locate-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .locate-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .input-with-button {
+            padding-right: 40px !important;
+        }
+
+        /* Validation Styles */
+        .form-control.invalid {
+            border-color: #EF4444 !important;
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 16px;
+        }
+
+        .form-control.valid {
+            border-color: #10B981 !important;
+        }
+
+        .error-message {
+            color: #EF4444;
+            font-size: 0.75rem;
+            margin-top: -0.5rem;
+            margin-bottom: 0.5rem;
+            display: none;
+            font-weight: 500;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
 <body>
     <header>
-        <div class="container flex justify-between items-center" style="height: 100%;">
+        <div
+            style="width: 100%; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; height: 100%;">
             <a href="index.php" class="logo">Helpify</a>
-            <div class="flex items-center gap-4">
+            <nav class="nav-links" style="display: flex; align-items: center;">
                 <span>Welcome, <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b></span>
-                <a href="api/logout.php" class="btn btn-outline"
-                    style="padding: 0.5rem 1rem; font-size: 0.9rem;">Logout</a>
-            </div>
+                <a href="api/logout.php" class="btn btn-primary" style="margin-left: 1rem;">Logout</a>
+            </nav>
         </div>
     </header>
 
@@ -194,6 +265,10 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             </div>
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person</span> Profile
+            </div>
+            <div class="nav-item cart-nav-item" onclick="openCartModal()" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;"><span class="material-icons">shopping_cart</span> Cart</div>
+                <span id="cartCountBadge" style="background: var(--warning); color: #000; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 0.8rem;">0</span>
             </div>
         </div>
 
@@ -404,67 +479,201 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     </div>
                 <?php endif; ?>
 
+                <?php
+                // Group Services
+                $parent_services = [];
+                $sub_services_map = [];
+
+                foreach ($services as $s) {
+                    if (empty($s['parent_id'])) {
+                        $parent_services[] = $s;
+                    } else {
+                        $sub_services_map[$s['parent_id']][] = $s;
+                    }
+                }
+                ?>
+
+                <!-- Hidden data for JS -->
+                <script>
+                    const subServicesMap = <?php echo json_encode($sub_services_map); ?>;
+                    const serviceImages = {
+                        // InstaHelp
+                        'Maid Service': 'assets/images/service-cleaning.png',
+                        'Cooking': 'assets/images/service-cooking.png',
+                        'Babysitting': 'assets/images/service-babysitting.png',
+                        'Elderly Care': 'assets/images/service-elderly.png',
+                        'Patient Care': 'assets/images/service_patient_care.png',
+                        // Laundry
+                        'Washing & Ironing': 'assets/images/service_washing_ironing.png',
+                        'Dry Cleaning': 'assets/images/service_dry_cleaning.png',
+                        'Blanket & Curtain Wash': 'assets/images/service_blanket_wash.png',
+                        'Shoe Cleaning & Polish': 'assets/images/service_shoe_clean.png',
+                        'Premium Suit Care': 'assets/images/service_premium_suit.png',
+                        // Car Wash
+                        'Complete Exterior Wash': 'assets/images/service_exterior_wash.png',
+                        'Full Interior Detailing': 'assets/images/service_interior_detailing.png',
+                        'Engine Steam Cleaning': 'assets/images/service_engine_steam.png',
+                        'Deep Paint Correction': 'assets/images/service_paint_correction.jpg',
+                        // Cleaning & Pest
+                        'Full Home Deep Cleaning': 'assets/images/service_cleaning_pest.png',
+                        'Sofa & Carpet Cleaning': 'assets/images/service-cleaning.png',
+                        'Kitchen Deep Cleaning': 'assets/images/service_kitchen_cleaning_new.jpg',
+                        'Bathroom Cleaning': 'assets/images/service_bathroom_cleaning_new.png',
+                        'Pest Control Service': 'assets/images/service_pest_control_new.png',
+                        // Electrician, Plumber & Carpenter
+                        'Electrician': 'assets/images/service_electrician_new.png',
+                        'Plumber': 'assets/images/service_plumber_new.png',
+                        'Carpenter': 'assets/images/service_carpenter_new.png',
+                        // Native Water Purifier
+                        'RO Service': 'assets/images/service_ro_service.png',
+                        'RO Installation': 'assets/images/service_ro_installation.png',
+                        'Filter Change': 'assets/images/service_filter_change.png',
+                        // Painting & Waterproofing
+                        'Room Painting': 'assets/images/service_painting.png',
+                        'Waterproofing': 'assets/images/service_waterproofing.png',
+                        'Wallpaper Installation': 'assets/images/service_wall.png',
+                        // AC & Appliance Repair
+                        'AC Service': 'assets/images/service_ac_service.png',
+                        'AC Gas Refill': 'assets/images/service_ac_gas_refill.png',
+                        'Fridge Repair': 'assets/images/service_fridge_repair.png',
+                        'Washing Machine Repair': 'assets/images/service_washing_machine_repair.png',
+                        // Wall makeover by Revamp
+                        '3D Wall Panel': 'assets/images/service_3d_wall_panel.png',
+                        'Texture Painting': 'assets/images/service_texture_painting.png',
+                        'Custom Wallpaper': 'assets/images/service_custom_wallpaper.png'
+                    };
+                </script>
+
                 <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-                    <?php foreach ($services as $service): ?>
+                    <?php foreach ($parent_services as $service): ?>
                         <div class="service-card" style="text-align: left;">
                             <div class="service-img-box">
                                 <?php
-                                $slug = strtolower($service['name']);
-                                if (strpos($slug, 'elderly') !== false) {
-                                    $img_filename = 'service-elderly.png';
-                                } else {
-                                    $img_filename = 'service-' . str_replace(' ', '-', $slug) . '.png';
+                                $known_images = [
+                                    'InstaHelp' => 'service_instahelp.png',
+                                    'Laundry & Dry Cleaning' => 'service_laundry.png',
+                                    'Car Wash & Detailing' => 'service_carwash.png',
+                                    'Women\'s Salon & Spa' => 'service_womens_salon.png',
+                                    'Men\'s Salon & Massage' => 'service_mens_salon.png',
+                                    'Cleaning & Pest Control' => 'service_cleaning_pest.png',
+                                    'Electrician, Plumber & Carpenter' => 'service_plumbing.png',
+                                    'Native Water Purifier' => 'service_water.png',
+                                    'Painting & Waterproofing' => 'service_painting.png',
+                                    'AC & Appliance Repair' => 'service_electrical.png',
+                                    'Wall makeover by Revamp' => 'service_wall.png',
+                                    'Babysitting' => 'service-babysitting.png',
+                                    'Elderly Care' => 'service-elderly.png',
+                                    'Cleaning' => 'service-cleaning.png',
+                                    'Cooking' => 'service-cooking.png'
+                                ];
+
+                                $img_src = null;
+                                if (isset($known_images[$service['name']])) {
+                                    $potential_src = 'assets/images/' . $known_images[$service['name']];
+                                    if (file_exists($potential_src)) {
+                                        $img_src = $potential_src;
+                                    }
                                 }
                                 ?>
-                                <img src="assets/images/<?php echo $img_filename; ?>"
-                                    alt="<?php echo htmlspecialchars($service['name']); ?>" class="service-img">
+                                <?php if ($img_src): ?>
+                                    <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($service['name']); ?>"
+                                        class="service-img">
+                                <?php else: ?>
+                                    <div
+                                        style="width:100%; height:100%; background: #EEF2FF; display: flex; align-items: center; justify-content: center; color: var(--primary-color);">
+                                        <span class="material-icons"
+                                            style="font-size: 64px;"><?php echo htmlspecialchars($service['icon'] ?? 'work'); ?></span>
+                                    </div>
+                                <?php endif; ?>
                             </div>
 
                             <h4 style="margin: 0; font-size: 1.25rem; margin-bottom: 0.5rem;">
                                 <?php echo htmlspecialchars($service['name']); ?>
                             </h4>
-                            <div style="color: var(--primary-color); font-weight: 700; margin-bottom: 1rem;">
-                                From ₹<?php echo $service['base_price']; ?></div>
+                            <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 1rem;">
+                                <?php echo htmlspecialchars($service['description'] ?? ''); ?>
+                            </div>
 
-                            <button class="btn btn-primary btn-block"
-                                onclick="openBookingModal('<?php echo $service['id']; ?>', '<?php echo htmlspecialchars($service['name']); ?>')">Book
-                                Now</button>
+                            <?php if (isset($sub_services_map[$service['id']])): ?>
+                                <button class="btn btn-primary btn-block"
+                                    onclick="openCategoryModal(<?php echo $service['id']; ?>, '<?php echo htmlspecialchars($service['name'], ENT_QUOTES); ?>')">View
+                                    Services</button>
+                            <?php else: ?>
+                                <div style="color: var(--primary-color); font-weight: 700; margin-bottom: 1rem;">
+                                    From ₹<?php echo $service['base_price']; ?>
+                                </div>
+                                <div id="action-container-parent-<?php echo $service['id']; ?>">
+                                    <button class="btn btn-primary btn-block"
+                                        onclick="showBookingOptionsParent('<?php echo $service['id']; ?>', '<?php echo htmlspecialchars($service['name'], ENT_QUOTES); ?>', <?php echo $service['base_price']; ?>)">Book</button>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
             </div>
 
-            <!-- Booking Modal -->
+            <!-- Category Modal (Sub-services) -->
+            <div id="categoryModal" class="modal">
+                <div class="modal-content">
+                    <span class="close" onclick="closeCategoryModal()">&times;</span>
+                    <h2 id="categoryModalTitle" style="margin-bottom: 1.5rem;">Services</h2>
+                    <div id="categoryModalContent" class="grid"
+                        style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <!-- JS Rendered -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Booking section renamed to Cart Modal -->
             <div id="bookingModal" class="modal">
                 <div class="modal-content">
                     <span class="close" onclick="closeBookingModal()">&times;</span>
-                    <h2>Book <span id="modalServiceName"></span></h2>
-                    <form action="api/booking_action.php" method="POST" style="margin-top: 1rem;">
+                    <h2>Cart Checkout</h2>
+                    <div id="cartItemsContainer" style="margin: 1rem 0; max-height: 200px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem;">
+                        <p style="text-align:center; color: var(--text-light); margin:0;">Your cart is empty.</p>
+                    </div>
+                    <div style="text-align: right; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Total: ₹<span id="cartTotalDisplay">0</span></div>
+                    
+                    <form action="api/booking_action.php" method="POST" id="checkoutForm" onsubmit="return validateCheckout()">
                         <input type="hidden" name="action" value="book">
-                        <input type="hidden" name="service_id" id="modalServiceId">
+                        <div id="cartHiddenInputs"></div>
 
                         <div class="input-group">
                             <label>Date</label>
-                            <input type="date" name="date" class="form-control" required
-                                min="<?php echo date('Y-m-d'); ?>">
+                            <input type="date" name="date" id="bookingDate" class="form-control" required
+                                min="<?php echo date('Y-m-d'); ?>" oninput="validateBookingField(this)">
+                            <div class="error-message" id="dateError">Please select a valid future date.</div>
                         </div>
                         <div class="input-group">
                             <label>Time</label>
-                            <input type="time" name="time" class="form-control" required>
+                            <input type="time" name="time" id="bookingTime" class="form-control" required
+                                oninput="validateBookingField(this)">
+                            <div class="error-message" id="timeError">Please select a valid time.</div>
                         </div>
                         <div class="input-group">
-                            <label>Location</label>
-                            <input type="text" name="location" class="form-control" placeholder="Your Address" required>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <label style="margin: 0;">Location</label>
+                                <button type="button" class="btn btn-outline"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;"
+                                    onclick="getCurrentLocation()">
+                                    <span class="material-icons" style="font-size: 14px;">my_location</span> Use Current
+                                    Location
+                                </button>
+                            </div>
+                            <div class="location-container">
+                                <input type="text" name="location" id="locationInput"
+                                    class="form-control input-with-button" placeholder="Your Address" required
+                                    oninput="validateBookingField(this)">
+                                <button type="button" class="locate-btn" onclick="getCurrentLocation()"
+                                    title="Use current location">
+                                    <span class="material-icons">my_location</span>
+                                </button>
+                            </div>
+                            <div class="error-message" id="locationError">Please provide a service location.</div>
                         </div>
-                        <div class="input-group">
-                            <label>Budget (₹)</label>
-                            <input type="number" name="budget" class="form-control" placeholder="e.g. 500">
-                        </div>
-                        <div class="input-group">
-                            <label>Special Instructions</label>
-                            <textarea name="instructions" class="form-control" rows="3"
-                                placeholder="Any specific requirements..."></textarea>
-                        </div>
+                        <div id="map"></div>
+
 
                         <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Confirm
                             Booking Request</button>
@@ -670,10 +879,21 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             </div>
                         </div>
                         <div class="input-group" style="margin-top: 1rem;">
-                            <label
-                                style="display: block; margin-bottom: 0.5rem; color: var(--text-light);">Address</label>
-                            <textarea name="address" rows="2"
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <label style="margin: 0; color: var(--text-light);">Address</label>
+                                <button type="button" class="btn btn-outline"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;"
+                                    onclick="getLocationForProfile()">
+                                    <span class="material-icons" style="font-size: 14px;">my_location</span> Use Current
+                                    Location
+                                </button>
+                            </div>
+                            <textarea name="address" id="profileAddress" rows="2"
                                 style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px;"><?php echo htmlspecialchars($user_details['address'] ?? ''); ?></textarea>
+                            <div id="profileMap"
+                                style="height: 150px; width: 100%; border-radius: 8px; margin-top: 0.5rem; border: 1px solid #ddd; display: none;">
+                            </div>
                         </div>
                         <div style="margin-top: 2rem;">
                             <button type="submit" class="btn btn-primary"
@@ -709,15 +929,224 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         const bookingModal = document.getElementById('bookingModal');
         const applicantsModal = document.getElementById('applicantsModal');
         const reviewModal = document.getElementById('reviewModal');
+        const categoryModal = document.getElementById('categoryModal');
 
-        function openBookingModal(serviceId, serviceName) {
-            document.getElementById('modalServiceId').value = serviceId;
-            document.getElementById('modalServiceName').innerText = serviceName;
+        function openCategoryModal(categoryId, categoryName) {
+            document.getElementById('categoryModalTitle').innerText = categoryName;
+            const content = document.getElementById('categoryModalContent');
+            content.innerHTML = '';
+
+            const services = subServicesMap[categoryId] || [];
+            if (services.length === 0) {
+                content.innerHTML = '<p>No services available in this category.</p>';
+            } else {
+                services.forEach(s => {
+                    const imgSrc = serviceImages[s.name];
+                    const div = document.createElement('div');
+                    div.className = 'service-card';
+                    div.style.textAlign = 'left';
+                    div.style.padding = '0';
+                    div.style.overflow = 'hidden';
+
+                    div.innerHTML = `
+                        <div class="service-img-box" style="height: 140px;">
+                            ${imgSrc ?
+                            `<img src="${imgSrc}" alt="${s.name}" class="service-img">` :
+                            `<div style="width:100%; height:100%; background: #EEF2FF; display: flex; align-items: center; justify-content: center; color: var(--primary-color);">
+                                    <span class="material-icons" style="font-size: 48px;">${s.icon || 'work'}</span>
+                                </div>`
+                        }
+                        </div>
+                        <div style="padding: 1rem;">
+                            <h4 style="font-size: 1.1rem; margin-bottom: 0.25rem;">${s.name}</h4>
+                            <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.4;">${s.description || ''}</p>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
+                                <div style="font-weight: 700; color: var(--primary-color); font-size: 1rem;">₹${s.base_price}</div>
+                                <div id="action-container-sub-${s.id}">
+                                    <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="showBookingOptionsSub('${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.base_price})">Book</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    content.appendChild(div);
+                });
+            }
+            categoryModal.style.display = 'block';
+        }
+
+        function closeCategoryModal() {
+            categoryModal.style.display = 'none';
+        }
+
+        let cart = [];
+
+        function showBookingOptionsParent(id, name, price) {
+            const container = document.getElementById('action-container-parent-' + id);
+            container.innerHTML = `
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline" style="flex:1; font-size: 0.85rem; padding: 0.5rem;" onclick="addToCart('${id}', '${name}', ${price}, this)">Add to Cart</button>
+                    <button class="btn btn-primary" style="flex:1; font-size: 0.85rem; padding: 0.5rem;" onclick="addToCart('${id}', '${name}', ${price}, null); openCartModal();">Continue Booking</button>
+                </div>
+            `;
+        }
+
+        function showBookingOptionsSub(id, name, price) {
+            const container = document.getElementById('action-container-sub-' + id);
+            container.innerHTML = `
+                <div style="display: flex; gap: 0.25rem;">
+                    <button class="btn btn-outline" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" onclick="addToCart('${id}', '${name}', ${price}, this)">Add to Cart</button>
+                    <button class="btn btn-primary" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" onclick="addToCart('${id}', '${name}', ${price}, null); openCartModal();">Continue Booking</button>
+                </div>
+            `;
+        }
+
+        function addToCart(serviceId, serviceName, basePrice, btnElement) {
+            cart.push({ id: serviceId, name: serviceName, price: parseFloat(basePrice) });
+            updateCartUI();
+            
+            if (btnElement) {
+                const originalText = btnElement.innerHTML;
+                btnElement.innerHTML = 'Added ✔';
+                btnElement.style.backgroundColor = 'var(--success)';
+                btnElement.style.borderColor = 'var(--success)';
+                btnElement.style.color = '#fff';
+                setTimeout(() => {
+                    btnElement.innerHTML = originalText;
+                    btnElement.style.backgroundColor = '';
+                    btnElement.style.borderColor = '';
+                    btnElement.style.color = '';
+                }, 1000);
+            }
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            document.getElementById('cartCountBadge').innerText = cart.length;
+            
+            const container = document.getElementById('cartItemsContainer');
+            const totalDisplay = document.getElementById('cartTotalDisplay');
+            const hiddenInputs = document.getElementById('cartHiddenInputs');
+            
+            hiddenInputs.innerHTML = '';
+            
+            if (cart.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color: var(--text-light); margin:0;">Your cart is empty.</p>';
+                totalDisplay.innerText = '0';
+                return;
+            }
+            
+            let total = 0;
+            let html = '';
+            cart.forEach((item, index) => {
+                total += item.price;
+                html += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-color);">${item.name}</div>
+                            <div style="color: var(--primary-color); font-size: 0.9rem;">₹${item.price}</div>
+                        </div>
+                        <button type="button" onclick="removeFromCart(${index})" style="background: none; border: none; color: var(--danger); cursor: pointer; display: flex; align-items: center;">
+                            <span class="material-icons" style="font-size: 18px;">delete</span>
+                        </button>
+                    </div>
+                `;
+                hiddenInputs.innerHTML += `<input type="hidden" name="service_ids[]" value="${item.id}">`;
+            });
+            
+            container.innerHTML = html;
+            totalDisplay.innerText = total;
+        }
+
+        function openCartModal() {
             bookingModal.style.display = 'block';
+            initMap();
         }
 
         function closeBookingModal() {
             bookingModal.style.display = 'none';
+        }
+
+        function validateCheckout() {
+            if (cart.length === 0) {
+                alert('Your cart is empty. Please add services to book.');
+                return false;
+            }
+            return true;
+        }
+
+        // Map Logic
+        let map, marker;
+        function initMap() {
+            // Default center (can be user's previous address if available)
+            const defaultLat = 9.9312; // Example: Kochi
+            const defaultLng = 76.2673;
+
+            if (!map) {
+                map = L.map('map').setView([defaultLat, defaultLng], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+
+                marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+
+                marker.on('dragend', function (e) {
+                    const latlng = marker.getLatLng();
+                    reverseGeocode(latlng.lat, latlng.lng);
+                });
+
+                map.on('click', function (e) {
+                    marker.setLatLng(e.latlng);
+                    reverseGeocode(e.latlng.lat, e.latlng.lng);
+                });
+            } else {
+                // Refresh map size because it might have been hidden
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            }
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                const btn = document.querySelector('.locate-btn');
+                const originalIcon = btn.innerHTML;
+                btn.innerHTML = '<span class="material-icons" style="animation: spin 1s linear infinite">sync</span>';
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const latlng = [lat, lng];
+
+                        map.setView(latlng, 16);
+                        marker.setLatLng(latlng);
+                        reverseGeocode(lat, lng);
+                        btn.innerHTML = originalIcon;
+                    },
+                    (error) => {
+                        alert("Geolocation failed: " + error.message);
+                        btn.innerHTML = originalIcon;
+                    }
+                );
+            } else {
+                alert("Geolocation is not supported by your browser.");
+            }
+        }
+
+        function reverseGeocode(lat, lng) {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`;
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        document.getElementById('locationInput').value = data.display_name;
+                    }
+                })
+                .catch(error => console.error('Error reverse geocoding:', error));
         }
 
         function closeApplicantsModal() {
@@ -867,6 +1296,99 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             if (event.target == reviewModal) closeReviewModal();
             if (event.target == profileModal) closeProfileModal();
         }
+
+        // Profile Map & Location
+        let profileMap, profileMarker;
+        function initProfileMap() {
+            if (profileMap) return;
+            document.getElementById('profileMap').style.display = 'block';
+            profileMap = L.map('profileMap').setView([9.9312, 76.2673], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(profileMap);
+            profileMarker = L.marker([9.9312, 76.2673], { draggable: true }).addTo(profileMap);
+
+            profileMarker.on('dragend', function () {
+                const latlng = profileMarker.getLatLng();
+                reverseGeocodeToId(latlng.lat, latlng.lng, 'profileAddress');
+            });
+        }
+
+        function getLocationForProfile() {
+            initProfileMap();
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    profileMap.setView([lat, lng], 16);
+                    profileMarker.setLatLng([lat, lng]);
+                    reverseGeocodeToId(lat, lng, 'profileAddress');
+                });
+            }
+        }
+
+        function reverseGeocodeToId(lat, lng, elementId) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        const el = document.getElementById(elementId);
+                        el.value = data.display_name;
+                        validateBookingField(el); // Re-validate after auto-fill
+                    }
+                });
+        }
+
+        // Live Validation Logic
+        function validateBookingField(input) {
+            const errorEl = input.parentElement.querySelector('.error-message') ||
+                input.parentElement.parentElement.querySelector('.error-message');
+
+            let isValid = true;
+            let message = "";
+
+            if (input.required && !input.value.trim()) {
+                isValid = false;
+                message = "This field is required.";
+            } else if (input.type === 'date') {
+                const selectedDate = new Date(input.value);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (selectedDate < today) {
+                    isValid = false;
+                    message = "Date cannot be in the past.";
+                }
+            } else if (input.id === 'locationInput' && input.value.trim().length < 5) {
+                isValid = false;
+                message = "Please enter a more detailed address.";
+            }
+
+            if (!isValid) {
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+                if (errorEl) {
+                    errorEl.textContent = message;
+                    errorEl.style.display = 'block';
+                }
+            } else {
+                input.classList.remove('invalid');
+                input.classList.add('valid');
+                if (errorEl) errorEl.style.display = 'none';
+            }
+            return isValid;
+        }
+
+        // Intercept form submission to validate everything
+        document.querySelector('#bookingModal form').addEventListener('submit', function (e) {
+            const inputs = this.querySelectorAll('input[required], textarea[required]');
+            let allValid = true;
+            inputs.forEach(input => {
+                if (!validateBookingField(input)) allValid = false;
+            });
+
+            if (!allValid) {
+                e.preventDefault();
+                alert("Please correct the errors in the form before submitting.");
+            }
+        });
     </script>
 
 </body>

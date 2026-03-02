@@ -20,6 +20,15 @@ try {
         echo "gender column might already exist.\n";
     }
 
+    // Add icon column to services
+    $sql = "ALTER TABLE services ADD COLUMN icon VARCHAR(255) DEFAULT 'cleaning_services'";
+    try {
+        $pdo->exec($sql);
+        echo "Added icon column to services.\n";
+    } catch (PDOException $e) {
+        echo "icon column might already exist.\n";
+    }
+
 } catch (PDOException $e) {
     echo "General Error: " . $e->getMessage() . "\n";
 }

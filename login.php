@@ -7,17 +7,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/home_redesign.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* Validation Styles */
+        .form-control.invalid {
+            border-color: #EF4444 !important;
+        }
+
+        .form-control.valid {
+            border-color: #10B981 !important;
+        }
+
+        .error-message {
+            color: #EF4444;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+            font-weight: 500;
+        }
+    </style>
 </head>
 
 <body>
-    <header>
-        <div class="container flex justify-between items-center" style="height: 100%;">
-            <a href="index.php" class="logo">Helpify</a>
-            <nav class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="register.php">Sign Up</a>
-            </nav>
+    <header class="uc-header">
+        <div class="header-container">
+            <div class="header-left">
+                <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                    <span
+                        style="background: black; color: white; padding: 4px 8px; border-radius: 6px; margin-right: 8px; font-weight: 700; font-size: 1.1rem; line-height: 1;">HF</span>
+                    <span
+                        style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <nav class="nav-links">
+                    <a href="index.php" style="font-weight: 600;">Home</a>
+                    <a href="register.php" class="btn btn-primary" style="padding: 0.5rem 1.5rem; color: white;">Sign
+                        Up</a>
+                </nav>
+            </div>
         </div>
     </header>
 
@@ -48,12 +77,16 @@
 
                     <div class="input-group">
                         <label>Email Address</label>
-                        <input type="email" name="email" placeholder="Enter your email" required>
+                        <input type="email" name="email" placeholder="Enter your email" required
+                            oninput="validateLoginField(this)" class="form-control">
+                        <div class="error-message">Please enter a valid email.</div>
                     </div>
 
                     <div class="input-group">
                         <label>Password</label>
-                        <input type="password" name="password" placeholder="Enter your password" required>
+                        <input type="password" name="password" placeholder="Enter your password" required
+                            oninput="validateLoginField(this)" class="form-control">
+                        <div class="error-message">Password is required.</div>
                     </div>
 
                     <div style="margin-bottom: 1.5rem; text-align: right;">
@@ -101,6 +134,50 @@
             </div>
         </div>
     </div>
+    <script>
+        function validateLoginField(input) {
+            const errorEl = input.nextElementSibling;
+            let isValid = true;
+            let message = "";
+
+            if (input.required && !input.value.trim()) {
+                isValid = false;
+                message = "This field is required.";
+            } else if (input.type === 'email') {
+                const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!re.test(input.value)) {
+                    isValid = false;
+                    message = "Please enter a valid email address.";
+                }
+            }
+
+            if (!isValid) {
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+                if (errorEl) {
+                    errorEl.textContent = message;
+                    errorEl.style.display = 'block';
+                }
+            } else {
+                input.classList.remove('invalid');
+                input.classList.add('valid');
+                if (errorEl) errorEl.style.display = 'none';
+            }
+            return isValid;
+        }
+
+        document.querySelector('form').addEventListener('submit', function (e) {
+            const inputs = this.querySelectorAll('input[required]');
+            let allValid = true;
+            inputs.forEach(input => {
+                if (!validateLoginField(input)) allValid = false;
+            });
+            if (!allValid) {
+                e.preventDefault();
+                alert("Please correct the errors in the form.");
+            }
+        });
+    </script>
 </body>
 
 </html>

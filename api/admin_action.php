@@ -45,6 +45,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         header('Location: ../admin_dashboard.php');
         exit;
+    } elseif ($action === 'update_helper') {
+        $helper_id = $_POST['user_id'];
+        $name = $_POST['name'];
+        $phone_number = $_POST['phone_number'];
+        $gender = $_POST['gender'];
+        $hourly_rate = $_POST['hourly_rate'];
+        $job_role = $_POST['job_role'];
+        $address = $_POST['address'];
+        $bio = $_POST['bio'];
+
+        try {
+            $stmt = $pdo->prepare("UPDATE users SET name = ?, phone_number = ?, gender = ?, hourly_rate = ?, job_role = ?, address = ?, bio = ? WHERE id = ? AND role = 'helper'");
+            $stmt->execute([$name, $phone_number, $gender, $hourly_rate, $job_role, $address, $bio, $helper_id]);
+
+            $_SESSION['success'] = 'Helper details updated successfully.';
+        } catch (PDOException $e) {
+            $_SESSION['error'] = 'Failed to update helper: ' . $e->getMessage();
+        }
+
+        header('Location: ../admin_dashboard.php?role=helper');
+        exit;
     }
 } else {
     header('Location: ../admin_dashboard.php');

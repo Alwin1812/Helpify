@@ -16,6 +16,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
     <title>Complete Profile - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 
 <body>
@@ -50,10 +53,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
                     </div>
 
                     <div class="input-group">
-                        <label>Address</label>
-                        <textarea name="address" class="form-control" rows="3" placeholder="Enter your full address"
-                            required
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label style="margin: 0;">Address</label>
+                            <button type="button" class="btn btn-outline"
+                                style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;"
+                                onclick="getCurrentLocation()">
+                                <span class="material-icons" style="font-size: 14px;">my_location</span> Use Current
+                                Location
+                            </button>
+                        </div>
+                        <textarea name="address" id="addressInput" class="form-control" rows="3"
+                            placeholder="Enter your full address" required
                             style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px;"></textarea>
+                        <div id="setupMap"
+                            style="height: 200px; width: 100%; border-radius: 8px; margin-top: 0.5rem; border: 1px solid #ddd; display: none;">
+                        </div>
                     </div>
 
                     <div class="input-group">
@@ -90,6 +105,46 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
                 submitBtn.disabled = true;
             }
         });
+
+        // Map & Location Logic
+        let setupMap, setupMarker;
+        function initSetupMap() {
+            if (setupMap) return;
+            document.getElementById('setupMap').style.display = 'block';
+            setupMap = L.map('setupMap').setView([9.9312, 76.2673], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(setupMap);
+            setupMarker = L.marker([9.9312, 76.2673], { draggable: true }).addTo(setupMap);
+
+            setupMarker.on('dragend', function () {
+                const latlng = setupMarker.getLatLng();
+                reverseGeocodeToInput(latlng.lat, latlng.lng);
+            });
+        }
+
+        function getCurrentLocation() {
+            initSetupMap();
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    setupMap.setView([lat, lng], 16);
+                    setupMarker.setLatLng([lat, lng]);
+                    reverseGeocodeToInput(lat, lng);
+                }, (error) => {
+                    alert("Location access denied or unavailable.");
+                });
+            }
+        }
+
+        function reverseGeocodeToInput(lat, lng) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        document.getElementById('addressInput').value = data.display_name;
+                    }
+                });
+        }
     </script>
 </body>
 

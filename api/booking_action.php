@@ -20,14 +20,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'book') {
         // ... (existing book logic)
-        $service_id = $_POST['service_id'];
+        $service_ids = $_POST['service_ids'] ?? [];
+        if (isset($_POST['service_id']) && !empty($_POST['service_id'])) {
+            $service_ids[] = $_POST['service_id'];
+        }
+
         $date = $_POST['date'];
         $time = $_POST['time'] ?? null;
         $location = $_POST['location'] ?? null;
         $budget = $_POST['budget'] ?? null;
         $instructions = $_POST['instructions'] ?? null;
 
-        if (empty($service_id) || empty($date)) {
+        if (empty($service_ids) || empty($date)) {
             $_SESSION['error'] = 'Please select a service and date.';
             header('Location: ../dashboard.php');
             exit;
@@ -40,64 +44,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $stmt = $pdo->prepare("
-                INSERT INTO bookings 
-                (user_id, service_id, date, time, location, budget, special_instructions, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-            ");
-            $stmt->execute([$user_id, $service_id, $date, $time, $location, $budget, $instructions]);
-            $booking_id = $pdo->lastInsertId();
+            $pdo->beginTransaction();
+            $booked_count = 0;
 
-            // Broadcast to Helpers
-            // 1. Get Service Name
-            $stmt = $pdo->prepare("SELECT name FROM services WHERE id = ?");
-            $stmt->execute([$service_id]);
-            $service_name = $stmt->fetchColumn();
+            foreach ($service_ids as $service_id) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO bookings 
+                    (user_id, service_id, date, time, location, budget, special_instructions, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+                ");
+                $stmt->execute([$user_id, $service_id, $date, $time, $location, $budget, $instructions]);
 
-            // 2. Find Matching Helpers (Simple keyword matching for MVP)
-            // If service is 'Cleaning', look for 'Maid', 'Cleaner'
-            // If service is 'Cooking', look for 'Cook'
-            // Else notify all helpers
-            $keywords = [];
-            if (stripos($service_name, 'Clean') !== false)
-                $keywords = ['Maid', 'Cleaner', 'Housekeeper'];
-            elseif (stripos($service_name, 'Cook') !== false)
-                $keywords = ['Cook', 'Chef'];
-            elseif (stripos($service_name, 'Baby') !== false)
-                $keywords = ['Nanny', 'Babysitter'];
-            elseif (stripos($service_name, 'Elder') !== false)
-                $keywords = ['Caregiver', 'Nurse'];
+                // Broadcast to Helpers
+                // 1. Get Service Name
+                $stmt = $pdo->prepare("SELECT name FROM services WHERE id = ?");
+                $stmt->execute([$service_id]);
+                $service_name = $stmt->fetchColumn();
 
-            $sql = "SELECT id FROM users WHERE role = 'helper'";
-            $params = [];
+                // 2. Find Matching Helpers (Simple keyword matching for MVP)
+                $keywords = [];
+                if (stripos($service_name, 'Clean') !== false)
+                    $keywords = ['Maid', 'Cleaner', 'Housekeeper'];
+                elseif (stripos($service_name, 'Cook') !== false)
+                    $keywords = ['Cook', 'Chef'];
+                elseif (stripos($service_name, 'Baby') !== false)
+                    $keywords = ['Nanny', 'Babysitter'];
+                elseif (stripos($service_name, 'Elder') !== false)
+                    $keywords = ['Caregiver', 'Nurse'];
 
-            if (!empty($keywords)) {
-                $conditions = [];
-                foreach ($keywords as $k) {
-                    $conditions[] = "job_role LIKE ?";
-                    $params[] = "%$k%";
+                $sql = "SELECT id FROM users WHERE role = 'helper'";
+                $params = [];
+
+                if (!empty($keywords)) {
+                    $conditions = [];
+                    foreach ($keywords as $k) {
+                        $conditions[] = "job_role LIKE ?";
+                        $params[] = "%$k%";
+                    }
+                    $sql .= " AND (" . implode(" OR ", $conditions) . ")";
                 }
-                $sql .= " AND (" . implode(" OR ", $conditions) . ")";
-            }
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-            $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-            // Fallback: If no strict match, notify ALL helpers so the request isn't lost
-            if (empty($helpers)) {
-                $stmt = $pdo->query("SELECT id FROM users WHERE role = 'helper'");
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
                 $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+                // Fallback: If no strict match, notify ALL helpers so the request isn't lost
+                if (empty($helpers)) {
+                    $stmt = $pdo->query("SELECT id FROM users WHERE role = 'helper'");
+                    $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                }
+
+                foreach ($helpers as $hid) {
+                    createNotification($pdo, $hid, "New Job Opportunity: $service_name on $date. Check your dashboard!", 'info');
+                }
+
+                $booked_count++;
             }
 
-            foreach ($helpers as $hid) {
-                createNotification($pdo, $hid, "New Job Opportunity: $service_name on $date. Check your dashboard!", 'info');
-            }
-
-            $_SESSION['success'] = 'Booking request sent successfully! Waiting for helpers to accept.';
+            $pdo->commit();
+            $_SESSION['success'] = "$booked_count Booking request(s) sent successfully! Waiting for helpers to accept.";
             header('Location: ../dashboard.php');
             exit;
         } catch (PDOException $e) {
+            $pdo->rollBack();
             $_SESSION['error'] = 'Booking failed: ' . $e->getMessage();
             header('Location: ../dashboard.php');
             exit;

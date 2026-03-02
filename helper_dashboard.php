@@ -22,18 +22,14 @@ $my_applications = [];
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $my_applications[$row['booking_id']] = $row;
 }
-// $my_applications is now [booking_id => ['status'=>..., 'bid_price'=>..., ...]]
 
 // Available jobs (pending or accepted-but-open, matching role)
-// Exclude jobs where I have already been rejected or selected (though selected would mean helper_id is set likely)
-// Actually if I was rejected, I shouldn't see it.
 $stmt = $pdo->prepare("
-    SELECT b.*, s.name as service_name, u.name as user_name 
+    SELECT b.*, s.name as service_name, u.name as user_name, u.profile_photo as user_photo
     FROM bookings b 
     JOIN services s ON b.service_id = s.id 
     JOIN users u ON b.user_id = u.id 
-    WHERE (b.status = 'pending' OR b.status = 'accepted')
-    AND b.helper_id IS NULL
+    WHERE (b.status = 'pending' OR (b.status = 'accepted' AND b.helper_id IS NULL))
     AND s.name = ? 
     ORDER BY b.created_at ASC
 ");
@@ -46,7 +42,7 @@ foreach ($all_requests as $req) {
     $my_app = $my_applications[$req['id']] ?? null;
     $status = $my_app['status'] ?? null;
     if ($status === 'rejected')
-        continue; // Don't show if I rejected or was rejected
+        continue;
     $new_requests[] = $req;
 }
 
@@ -71,24 +67,27 @@ $my_jobs = $stmt->fetchAll();
     <title>Helper Dashboard - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <header>
         <div class="container flex justify-between items-center" style="height: 100%;">
             <a href="index.php" class="logo">Helpify</a>
-            <div class="flex items-center gap-4">
-                <span>Helper: <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b></span>
-                <span class="status-badge status-completed">Available</span>
-                <a href="api/logout.php" class="btn btn-outline"
-                    style="padding: 0.5rem 1rem; font-size: 0.9rem;">Logout</a>
-            </div>
+            <nav class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 0.9rem; color: var(--text-light);">
+                    Helper • <b
+                        style="color: var(--text-color);"><?php echo htmlspecialchars($_SESSION['user_name']); ?></b>
+                </span>
+                <span class="status-badge status-completed" style="font-size: 0.75rem;">AVAILABLE</span>
+                <a href="api/logout.php" class="btn btn-primary" style="margin-left: 1rem;">Logout</a>
+            </nav>
         </div>
     </header>
 
     <?php if (isset($_SESSION['success'])): ?>
         <div class="container" style="margin-top: 1rem;">
-            <div style="background: var(--success); color: white; padding: 1rem; border-radius: 8px;">
+            <div style="background: #ECFDF5; color: #065F46; padding: 1rem; border-radius: 8px; border: 1px solid #A7F3D0;">
                 <?php echo $_SESSION['success'];
                 unset($_SESSION['success']); ?>
             </div>
@@ -97,7 +96,7 @@ $my_jobs = $stmt->fetchAll();
 
     <?php if (isset($_SESSION['error'])): ?>
         <div class="container" style="margin-top: 1rem;">
-            <div style="background: #DC2626; color: white; padding: 1rem; border-radius: 8px;">
+            <div style="background: #FEF2F2; color: #991B1B; padding: 1rem; border-radius: 8px; border: 1px solid #FECACA;">
                 <?php echo $_SESSION['error'];
                 unset($_SESSION['error']); ?>
             </div>
@@ -106,18 +105,31 @@ $my_jobs = $stmt->fetchAll();
 
     <div class="dashboard-layout">
         <!-- Sidebar -->
-        <div class="sidebar" style="background-color: #10B981;">
+        <div class="sidebar">
+            <div style="margin-bottom: 2rem; padding: 0 1rem;">
+                <p
+                    style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.6); font-weight: 600;">
+                    Main Menu</p>
+            </div>
             <div class="nav-item active" onclick="showSection('dashboard')">
-                <span class="material-icons">dashboard</span> Dashboard
+                <span class="material-icons">grid_view</span> Dashboard
             </div>
             <div class="nav-item" onclick="showSection('requests')">
-                <span class="material-icons">assignment</span> Job Market
+                <span class="material-icons">work_outline</span> Job Market
             </div>
             <div class="nav-item" onclick="showSection('jobs')">
-                <span class="material-icons">work</span> My Jobs
+                <span class="material-icons">task_alt</span> My Jobs
             </div>
             <div class="nav-item" onclick="showSection('profile')">
-                <span class="material-icons">person</span> Profile
+                <span class="material-icons">person_outline</span> Profile
+            </div>
+
+            <div
+                style="margin-top: auto; padding: 1.5rem; background: rgba(0,0,0,0.1); border-radius: 12px; margin-bottom: 1rem;">
+                <p style="font-size: 0.8rem; opacity: 0.9;">Total Earnings</p>
+                <h3 style="color: white; font-size: 1.5rem; margin-top: 0.25rem;">
+                    ₹<?php echo number_format(count(array_filter($my_jobs, fn($j) => $j['status'] === 'completed')) * ($helper['hourly_rate'] ?: 500)); ?>
+                </h3>
             </div>
         </div>
 
@@ -126,148 +138,266 @@ $my_jobs = $stmt->fetchAll();
 
             <!-- Dashboard Overview Section -->
             <div id="dashboard-section" class="tab-content">
-                <h2 style="margin-bottom: 2rem;">Helper Dashboard</h2>
-                <!-- Stats -->
-                <div class="grid mb-4"
-                    style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 style="font-size: 1.5rem; color: #111827;">Overview</h2>
+                    <span style="font-size: 0.9rem; color: #6B7280;"><?php echo date('l, d F Y'); ?></span>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid"
+                    style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+
                     <div class="stat-card">
-                        <h3>Total Jobs Done</h3>
-                        <div class="stat-value">
-                            <?php echo count(array_filter($my_jobs, fn($j) => $j['status'] === 'completed')); ?>
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3>Total Jobs Done</h3>
+                                <div class="stat-value" style="color: var(--primary-color);">
+                                    <?php echo count(array_filter($my_jobs, fn($j) => $j['status'] === 'completed')); ?>
+                                </div>
+                            </div>
+                            <span class="material-icons" style="color: #E5E7EB; font-size: 40px;">check_circle</span>
                         </div>
+                        <span>Lifetime completed services</span>
                     </div>
+
                     <div class="stat-card">
-                        <h3>Active Jobs</h3>
-                        <div class="stat-value">
-                            <?php echo count(array_filter($my_jobs, fn($j) => $j['status'] === 'confirmed')); ?>
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3>Active Jobs</h3>
+                                <div class="stat-value" style="color: #F59E0B;">
+                                    <?php echo count(array_filter($my_jobs, fn($j) => $j['status'] === 'confirmed')); ?>
+                                </div>
+                            </div>
+                            <span class="material-icons" style="color: #E5E7EB; font-size: 40px;">pending_actions</span>
                         </div>
+                        <span>Jobs currently in progress</span>
                     </div>
+
                     <div class="stat-card">
-                        <h3>Rating</h3>
-                        <div class="stat-value">
-                            <?php echo $helper['average_rating'] > 0 ? $helper['average_rating'] . ' ★' : 'N/A'; ?>
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3>Average Rating</h3>
+                                <div class="stat-value" style="color: #10B981;">
+                                    <?php echo $helper['average_rating'] > 0 ? $helper['average_rating'] : 'N/A'; ?>
+                                    <span style="font-size: 1.5rem; color: #F59E0B; vertical-align: middle;">★</span>
+                                </div>
+                            </div>
+                            <span class="material-icons" style="color: #E5E7EB; font-size: 40px;">star_outline</span>
                         </div>
+                        <span>Based on customer reviews</span>
                     </div>
                 </div>
 
-                <div style="margin-top: 2rem; padding: 1.5rem; background: #f9fafb; border-radius: 8px;">
-                    <h3>Quick Overview</h3>
-                    <p>You have <strong><?php echo count($new_requests); ?></strong> opportunities in the Market.
-                        Check the "Job Market" tab.</p>
+                <!-- Quick Action / Banner -->
+                <div
+                    style="background: linear-gradient(to right, #ffffff, #f0f9ff); border: 1px solid #DBEAFE; border-radius: 16px; padding: 2rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div>
+                        <h3 style="color: var(--primary-dark); margin-bottom: 0.5rem; font-size: 1.25rem;">Find New
+                            Opportunities</h3>
+                        <p style="color: #4B5563; max-width: 500px; margin-bottom: 1.5rem;">
+                            There are currently <strong><?php echo count($new_requests); ?></strong> job requests
+                            matching your profile.
+                            Browse the market to find your next gig.
+                        </p>
+                        <button onclick="showSection('requests')" class="btn btn-primary">Go to Job Market</button>
+                    </div>
+                    <div style="display: none; @media(min-width: 768px) { display: block; }">
+                        <span class="material-icons"
+                            style="font-size: 100px; color: #BFDBFE; opacity: 0.5;">travel_explore</span>
+                    </div>
                 </div>
             </div>
 
             <!-- Booking Requests Section -->
             <div id="requests-section" class="tab-content" style="display: none;">
-                <h2 style="margin-bottom: 2rem;">Job Market</h2>
-                <div class="grid" style="gap: 1rem;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 style="font-size: 1.5rem; color: #111827;">Job Market</h2>
+                    <div
+                        style="background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="material-icons" style="font-size: 20px; color: #999;">filter_list</span>
+                        <select
+                            style="border: none; outline: none; font-size: 0.9rem; color: #444; background: transparent;">
+                            <option>All Requests</option>
+                            <option>High Budget</option>
+                            <option>Near Me</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid" style="gap: 1.5rem;">
                     <?php if (count($new_requests) > 0): ?>
                         <?php foreach ($new_requests as $req): ?>
                             <?php
                             $my_app = $my_applications[$req['id']] ?? null;
                             $app_status = $my_app['status'] ?? null;
-                            $is_applied = ($app_status === 'accepted');
+                            $is_applied = ($app_status === 'accepted'); // Actually 'accepted' status in requests table usually means helper is selected, but here we track application status differently maybe? 
+                            // The logic in original file: 'accepted' meant applied?
+                            // Let's assume 'status' in booking_requests is 'pending', 'accepted' (meaning selected by user), or 'rejected'.
+                            // If I applied, there should be a record.
+                            $has_bid = !empty($my_app);
                             ?>
-                            <div class="stat-card flex justify-between items-center"
-                                style="border-left: 5px solid <?php echo $is_applied ? '#F59E0B' : '#10B981'; ?>;">
-                                <div style="flex: 1;">
-                                    <h4 style="margin-bottom: 0.25rem;">
-                                        User: <?php echo htmlspecialchars($req['user_name']); ?>
-                                        <?php if($is_applied): ?> 
-                                            <span style="font-size:0.8rem; background:#F59E0B; color:white; padding:2px 6px; border-radius:4px; vertical-align:middle; margin-left:5px;">Applied</span>
-                                        <?php endif; ?>
-                                    </h4>
-                                    <p style="color: var(--text-light); font-size: 0.9rem;">
-                                        Service: <b><?php echo htmlspecialchars($req['service_name']); ?></b> <br>
-                                        Date: <?php echo date('d-M-Y', strtotime($req['date'])); ?>
-                                        <?php if ($req['time'])
-                                            echo ' at ' . date('h:i A', strtotime($req['time'])); ?> <br>
-                                        Location: <?php echo htmlspecialchars($req['location'] ?? 'N/A'); ?> <br>
-                                        Budget: <?php echo $req['budget'] ? '₹' . $req['budget'] : 'Standard Rate'; ?>
-                                    </p>
-                                    <?php if ($req['special_instructions']): ?>
-                                        <p style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
-                                            <i>Note: <?php echo htmlspecialchars($req['special_instructions']); ?></i>
-                                        </p>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="flex gap-4">
-                                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                        <form action="api/booking_action.php" method="POST"
-                                            style="display: flex; gap: 0.5rem; flex-direction: column;">
-                                            <input type="hidden" name="action" value="accept">
-                                            <input type="hidden" name="booking_id" value="<?php echo $req['id']; ?>">
+                            <div class="card" style="<?php echo $is_applied ? 'border-color: #F59E0B;' : ''; ?>">
+                                <div class="flex justify-between items-start" style="flex-wrap: wrap; gap: 1rem;">
+                                    <div class="flex gap-4 items-start">
+                                        <div
+                                            style="width: 56px; height: 56px; background: #F3F4F6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                            <span class="material-icons" style="color: #6B7280;">person</span>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-size: 1.1rem; margin-bottom: 0.25rem;">
+                                                <?php echo htmlspecialchars($req['service_name']); ?> Job
+                                                <?php if ($has_bid): ?>
+                                                    <span class="status-badge status-pending"
+                                                        style="margin-left: 0.5rem;">Applied</span>
+                                                <?php endif; ?>
+                                            </h4>
+                                            <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                                                Posted by <strong><?php echo htmlspecialchars($req['user_name']); ?></strong> •
+                                                <span
+                                                    style="font-size: 0.85rem;"><?php echo date('d M, h:i A', strtotime($req['created_at'])); ?></span>
+                                            </p>
+                                            <div class="flex gap-4" style="font-size: 0.85rem; color: #4B5563;">
+                                                <span class="flex items-center gap-1"><span class="material-icons"
+                                                        style="font-size: 16px;">calendar_today</span>
+                                                    <?php echo date('d M Y', strtotime($req['date'])); ?></span>
+                                                <span class="flex items-center gap-1"><span class="material-icons"
+                                                        style="font-size: 16px;">schedule</span>
+                                                    <?php echo $req['time'] ? date('h:i A', strtotime($req['time'])) : 'Flex'; ?></span>
+                                                <span class="flex items-center gap-1"><span class="material-icons"
+                                                        style="font-size: 16px;">place</span>
+                                                    <?php echo htmlspecialchars($req['location'] ?? 'Remote'); ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                            <input type="number" name="bid_price" 
-                                                placeholder="Your Offer (₹)" required
-                                                value="<?php echo $is_applied ? htmlspecialchars($my_app['bid_price'] ?? '') : ($req['budget'] ?: ''); ?>"
-                                                style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; width: 140px;">
-
-                                            <input type="text" name="arrival_estimate"
-                                                placeholder="Arrival Time" required
-                                                value="<?php echo $is_applied ? htmlspecialchars($my_app['arrival_estimate'] ?? '') : ''; ?>"
-                                                style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; width: 140px;">
-
-                                            <textarea name="notes" placeholder="Notes (e.g. tools)" rows="1"
-                                                style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; resize: vertical; width: 140px;"><?php echo $is_applied ? htmlspecialchars($my_app['notes'] ?? '') : ''; ?></textarea>
-
-                                            <button type="submit" class="btn"
-                                                style="background: <?php echo $is_applied ? '#3B82F6' : '#10B981'; ?>; color: white; width: 100%;">
-                                                <?php echo $is_applied ? 'Update Bid' : 'Submit Bid'; ?>
-                                            </button>
-                                        </form>
-
-                                        <?php if ($is_applied): ?>
-                                            <form action="api/booking_action.php" method="POST" onsubmit="return confirm('Withdraw your bid?');">
-                                                <input type="hidden" name="action" value="reject">
-                                                <input type="hidden" name="booking_id" value="<?php echo $req['id']; ?>">
-                                                <button type="submit" class="btn"
-                                                    style="background: #6B7280; color: white; width: 100%; border:none; font-size: 0.9rem; padding: 0.5rem;">Withdraw</button>
-                                            </form>
-                                        <?php else: ?>
-                                            <form action="api/booking_action.php" method="POST">
-                                                <input type="hidden" name="action" value="reject">
-                                                <input type="hidden" name="booking_id" value="<?php echo $req['id']; ?>">
-                                                <button type="submit" class="btn"
-                                                    style="background: #EF4444; color: white; width: 100%; border:none; font-size: 0.9rem; padding: 0.5rem;">Ignore</button>
-                                            </form>
-                                        <?php endif; ?>
+                                    <div class="text-center" style="min-width: 120px;">
+                                        <p
+                                            style="font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600;">
+                                            Client Budget</p>
+                                        <div style="font-size: 1.5rem; font-weight: 700; color: #111827;">
+                                            <?php echo $req['budget'] ? '₹' . $req['budget'] : '<span style="font-size:1rem; color:#666;">Open</span>'; ?>
+                                        </div>
                                     </div>
                                 </div>
 
+                                <hr style="border: 0; border-top: 1px solid #F3F4F6; margin: 1.25rem 0;">
+
+                                <?php if ($req['special_instructions']): ?>
+                                    <div
+                                        style="background: #F9FAFB; padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.9rem; color: #4B5563;">
+                                        <strong>Note:</strong> <?php echo htmlspecialchars($req['special_instructions']); ?>
+                                    </div>
+                                <?php endif; ?>
+
+                                <!-- Bidding Area -->
+                                <div
+                                    style="background: #FAFAFA; border: 1px dashed #E5E7EB; padding: 1rem; border-radius: 8px;">
+                                    <form action="api/booking_action.php" method="POST" class="flex items-end gap-2"
+                                        style="flex-wrap: wrap;">
+                                        <input type="hidden" name="action" value="accept">
+                                        <!-- 'accept' here means apply/bid -->
+                                        <input type="hidden" name="booking_id" value="<?php echo $req['id']; ?>">
+
+                                        <div style="flex: 1; min-width: 140px;">
+                                            <label
+                                                style="display: block; font-size: 0.8rem; font-weight: 600; color: #4B5563; margin-bottom: 0.25rem;">Your
+                                                Offer (₹)</label>
+                                            <input type="number" name="bid_price" required
+                                                value="<?php echo $has_bid ? htmlspecialchars($my_app['bid_price'] ?? '') : ($req['budget'] ?: ''); ?>"
+                                                style="width: 100%; padding: 0.5rem; border: 1px solid #D1D5DB; border-radius: 6px;">
+                                        </div>
+
+                                        <div style="flex: 1; min-width: 140px;">
+                                            <label
+                                                style="display: block; font-size: 0.8rem; font-weight: 600; color: #4B5563; margin-bottom: 0.25rem;">Arrival
+                                                Time</label>
+                                            <input type="text" name="arrival_estimate" required placeholder="e.g. 10:00 AM"
+                                                value="<?php echo $has_bid ? htmlspecialchars($my_app['arrival_estimate'] ?? '') : ''; ?>"
+                                                style="width: 100%; padding: 0.5rem; border: 1px solid #D1D5DB; border-radius: 6px;">
+                                        </div>
+
+                                        <div style="flex: 2; min-width: 200px;">
+                                            <label
+                                                style="display: block; font-size: 0.8rem; font-weight: 600; color: #4B5563; margin-bottom: 0.25rem;">Notes</label>
+                                            <input type="text" name="notes" placeholder="I have my own tools..."
+                                                value="<?php echo $has_bid ? htmlspecialchars($my_app['notes'] ?? '') : ''; ?>"
+                                                style="width: 100%; padding: 0.5rem; border: 1px solid #D1D5DB; border-radius: 6px;">
+                                        </div>
+
+                                        <div style="flex: 0 0 auto;">
+                                            <label
+                                                style="display: block; font-size: 0.8rem; font-weight: 600; color: #4B5563; margin-bottom: 0.25rem; visibility: hidden;">Action</label>
+                                            <button type="submit" class="btn btn-primary"
+                                                style="padding: 0.55rem 1.5rem; border-radius: 6px;">
+                                                <?php echo $has_bid ? 'Update Bid' : 'Submit Bid'; ?>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <p style="color: var(--text-light);">No new jobs available for
-                            <strong><?php echo htmlspecialchars($helper_role); ?></strong>.
-                        </p>
+                        <div
+                            style="text-align: center; padding: 4rem 2rem; background: white; border-radius: 12px; border: 1px dashed #E5E7EB;">
+                            <span class="material-icons"
+                                style="font-size: 48px; color: #D1D5DB; margin-bottom: 1rem;">inbox</span>
+                            <h3 style="color: #6B7280; font-size: 1.1rem;">No new jobs available</h3>
+                            <p style="color: #9CA3AF;">Check back later for new opportunities in
+                                <?php echo htmlspecialchars($helper_role); ?>.
+                            </p>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
 
             <!-- My Jobs Section -->
             <div id="jobs-section" class="tab-content" style="display: none;">
-                <h2 style="margin-bottom: 2rem;">My Jobs History</h2>
+                <h2 style="font-size: 1.5rem; color: #111827; margin-bottom: 1.5rem;">Job History</h2>
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
-                                <th>User</th>
+                                <th>Client</th>
                                 <th>Service Details</th>
-                                <th>Date</th>
+                                <th>Schedule</th>
                                 <th>Status</th>
-                                <th>Action</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($my_jobs as $job): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($job['user_name']); ?></td>
                                     <td>
-                                        <?php echo htmlspecialchars($job['service_name']); ?><br>
-                                        <small><?php echo htmlspecialchars($job['location']); ?></small>
+                                        <div class="flex items-center gap-4">
+                                            <div
+                                                style="width: 36px; height: 36px; background: #E0E7FF; color: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                                <?php echo strtoupper(substr($job['user_name'], 0, 1)); ?>
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600; color: #111827;">
+                                                    <?php echo htmlspecialchars($job['user_name']); ?>
+                                                </div>
+                                                <div style="font-size: 0.8rem; color: #6B7280;">ID:
+                                                    #<?php echo $job['id']; ?></div>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td><?php echo date('d-M-Y', strtotime($job['date'])); ?></td>
+                                    <td>
+                                        <span
+                                            style="font-weight: 500; color: #374151;"><?php echo htmlspecialchars($job['service_name']); ?></span>
+                                        <div
+                                            style="font-size: 0.8rem; color: #6B7280; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <?php echo htmlspecialchars($job['location']); ?>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style="color: #374151; font-weight: 500;">
+                                            <?php echo date('d M Y', strtotime($job['date'])); ?>
+                                        </div>
+                                        <div style="font-size: 0.8rem; color: #6B7280;">
+                                            <?php echo $job['time'] ? date('h:i A', strtotime($job['time'])) : 'Flexible'; ?>
+                                        </div>
+                                    </td>
                                     <td>
                                         <span class="status-badge status-<?php echo $job['status']; ?>">
                                             <?php echo ucfirst($job['status']); ?>
@@ -278,16 +408,23 @@ $my_jobs = $stmt->fetchAll();
                                             <form action="api/booking_action.php" method="POST">
                                                 <input type="hidden" name="action" value="complete">
                                                 <input type="hidden" name="booking_id" value="<?php echo $job['id']; ?>">
-                                                <button type="submit" class="btn"
-                                                    style="background: #3B82F6; color: white; padding: 0.25rem 0.5rem; font-size: 0.8rem;">Mark
-                                                    Done</button>
+                                                <button type="submit" class="btn btn-primary"
+                                                    style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                    Mark Done
+                                                </button>
                                             </form>
                                         <?php else: ?>
-                                            -
+                                            <span style="color: #9CA3AF; font-size: 1.25rem;">&bull;&bull;&bull;</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
+                            <?php if (empty($my_jobs)): ?>
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #9CA3AF; padding: 2rem;">No jobs
+                                        found.</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -295,106 +432,84 @@ $my_jobs = $stmt->fetchAll();
 
             <!-- Profile Section -->
             <div id="profile-section" class="tab-content" style="display: none;">
-                <h2 style="margin-bottom: 2rem;">My Profile</h2>
-                <div
-                    style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <h2 style="font-size: 1.5rem; color: #111827; margin-bottom: 2rem;">Edit Profile</h2>
 
-                    <form action="api/update_profile.php" method="POST" enctype="multipart/form-data">
+                <div style="background: white; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden;">
+                    <div class="grid" style="grid-template-columns: 300px 1fr; gap: 0;">
 
-                        <!-- Profile Photo Preview -->
-                        <div style="text-align: center; margin-bottom: 2rem;">
+                        <!-- Left Panel: Photo -->
+                        <div
+                            style="background: #F9FAFB; padding: 3rem 2rem; text-align: center; border-right: 1px solid #E5E7EB;">
                             <div
-                                style="width: 120px; height: 120px; background: #f3f4f6; border-radius: 50%; overflow: hidden; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; border: 4px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                style="width: 140px; height: 140px; background: white; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: 0 auto 1.5rem; overflow: hidden; position: relative;">
                                 <?php if (!empty($helper['profile_photo'])): ?>
                                     <img src="<?php echo htmlspecialchars($helper['profile_photo']); ?>"
                                         style="width: 100%; height: 100%; object-fit: cover;">
                                 <?php else: ?>
-                                    <span class="material-icons" style="font-size: 64px; color: #9ca3af;">person</span>
+                                    <div
+                                        style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #E5E7EB;">
+                                        <span class="material-icons" style="font-size: 64px; color: #9CA3AF;">person</span>
+                                    </div>
                                 <?php endif; ?>
                             </div>
-                            <label for="photo_upload"
-                                style="cursor: pointer; color: var(--primary-color); font-weight: 500;">
-                                Change Photo
-                                <input type="file" id="photo_upload" name="profile_photo" accept="image/*"
-                                    style="display: none;"
-                                    onchange="document.getElementById('save-btn').disabled = false;">
-                            </label>
+
+                            <h3 style="margin-bottom: 0.25rem;"><?php echo htmlspecialchars($helper['name']); ?></h3>
+                            <p style="color: #6B7280; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                                <?php echo htmlspecialchars($helper['email']); ?>
+                            </p>
+
+                            <div
+                                style="background: #FEF3C7; color: #92400E; padding: 1rem; border-radius: 8px; font-size: 0.85rem; margin-top: 2rem;">
+                                <p style="margin-bottom: 0.5rem;"><strong>Profile Locked</strong></p>
+                                <p>To update your profile details or photo, please contact the administrator.</p>
+                            </div>
                         </div>
 
-                        <div class="grid"
-                            style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
-
-                            <!-- Personal Details -->
-                            <div>
-                                <h3 style="margin-bottom: 1rem; color: #4b5563; font-size: 1.1rem;">Personal Details
-                                </h3>
+                        <!-- Right Panel: Fields (Read Only) -->
+                        <div style="padding: 3rem;">
+                            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                                 <div class="input-group">
                                     <label>Full Name</label>
-                                    <input type="text" name="name"
-                                        value="<?php echo htmlspecialchars($helper['name']); ?>" required>
-                                </div>
-                                <div class="input-group">
-                                    <label>Email Address</label>
-                                    <input type="email" value="<?php echo htmlspecialchars($helper['email']); ?>"
-                                        readonly style="background: #f3f4f6;">
+                                    <div class="form-control" style="background: #F3F4F6;">
+                                        <?php echo htmlspecialchars($helper['name']); ?></div>
                                 </div>
                                 <div class="input-group">
                                     <label>Phone Number</label>
-                                    <input type="tel" name="phone_number"
-                                        value="<?php echo htmlspecialchars($helper['phone_number'] ?? ''); ?>"
-                                        pattern="[0-9]{10}" maxlength="10" placeholder="10-digit number">
+                                    <div class="form-control" style="background: #F3F4F6;">
+                                        <?php echo htmlspecialchars($helper['phone_number'] ?? 'Not set'); ?></div>
                                 </div>
                                 <div class="input-group">
                                     <label>Gender</label>
-                                    <select name="gender">
-                                        <option value="" disabled <?php echo empty($helper['gender']) ? 'selected' : ''; ?>>Select Gender</option>
-                                        <option value="Male" <?php echo ($helper['gender'] === 'Male') ? 'selected' : ''; ?>>Male</option>
-                                        <option value="Female" <?php echo ($helper['gender'] === 'Female') ? 'selected' : ''; ?>>Female</option>
-                                        <option value="Other" <?php echo ($helper['gender'] === 'Other') ? 'selected' : ''; ?>>Other</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <!-- Professional Details -->
-                            <div>
-                                <h3 style="margin-bottom: 1rem; color: #4b5563; font-size: 1.1rem;">Professional Details
-                                </h3>
-                                <div class="input-group">
-                                    <label>Job Category</label>
-                                    <select name="job_role">
-                                        <?php
-                                        $roles = ['Cleaning', 'Cooking', 'Babysitting', 'Elderly Care'];
-                                        foreach ($roles as $role) {
-                                            $selected = ($helper_role === $role) ? 'selected' : '';
-                                            echo "<option value=\"$role\" $selected>$role</option>";
-                                        }
-                                        ?>
-                                    </select>
+                                    <div class="form-control" style="background: #F3F4F6;">
+                                        <?php echo htmlspecialchars($helper['gender'] ?? 'Not set'); ?></div>
                                 </div>
                                 <div class="input-group">
                                     <label>Hourly Rate (₹)</label>
-                                    <input type="number" name="hourly_rate"
-                                        value="<?php echo htmlspecialchars($helper['hourly_rate'] ?? ''); ?>"
-                                        placeholder="e.g. 500">
+                                    <div class="form-control" style="background: #F3F4F6;">
+                                        <?php echo htmlspecialchars($helper['hourly_rate'] ?? 'Not set'); ?></div>
                                 </div>
                                 <div class="input-group">
-                                    <label>Address</label>
-                                    <textarea name="address"
-                                        rows="2"><?php echo htmlspecialchars($helper['address'] ?? ''); ?></textarea>
-                                </div>
-                                <div class="input-group">
-                                    <label>Bio</label>
-                                    <textarea name="bio" rows="3"
-                                        placeholder="Describe your skills..."><?php echo htmlspecialchars($helper['bio'] ?? ''); ?></textarea>
+                                    <label>Job Category</label>
+                                    <div class="form-control" style="background: #F3F4F6;">
+                                        <span
+                                            class="status-badge badge-purple"><?php echo htmlspecialchars($helper_role ?? 'General'); ?></span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
-                            <button type="submit" id="save-btn" class="btn btn-primary"
-                                style="background: #10B981; color: white; padding: 0.8rem 2rem;">Save Changes</button>
+                            <div class="input-group" style="margin-top: 1.5rem;">
+                                <label>Address</label>
+                                <div class="form-control" style="background: #F3F4F6; min-height: 60px;">
+                                    <?php echo htmlspecialchars($helper['address'] ?? 'Not set'); ?></div>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Bio</label>
+                                <div class="form-control" style="background: #F3F4F6; min-height: 80px;">
+                                    <?php echo htmlspecialchars($helper['bio'] ?? 'No bio provided'); ?></div>
+                            </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
 
@@ -406,16 +521,18 @@ $my_jobs = $stmt->fetchAll();
             document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
-            let targetId = sectionId;
+            let targetId = sectionId + '-section';
             if (sectionId === 'dashboard') targetId = 'dashboard-section';
-            else if (sectionId === 'requests') targetId = 'requests-section';
-            else if (sectionId === 'jobs') targetId = 'jobs-section';
-            else if (sectionId === 'profile') targetId = 'profile-section';
 
-            document.getElementById(targetId).style.display = 'block';
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) targetEl.style.display = 'block';
 
+            // Find the index of nav item to activate
             const indexMap = { 'dashboard': 0, 'requests': 1, 'jobs': 2, 'profile': 3 };
-            document.querySelectorAll('.nav-item')[indexMap[sectionId]].classList.add('active');
+            const navItems = document.querySelectorAll('.nav-item');
+            if (navItems[indexMap[sectionId]]) {
+                navItems[indexMap[sectionId]].classList.add('active');
+            }
         }
     </script>
 </body>
