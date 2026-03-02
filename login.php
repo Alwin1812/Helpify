@@ -103,7 +103,7 @@
                     <?php
                     require_once 'includes/google_config.php';
                     if (defined('GOOGLE_CLIENT_ID') && GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID') {
-                        $google_login_url = 'https://accounts.google.com/o/oauth2/v2/auth?scope=' . urlencode('https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email') . '&redirect_uri=' . urlencode(GOOGLE_REDIRECT_URL) . '&response_type=code&client_id=' . GOOGLE_CLIENT_ID . '&access_type=online';
+                        $google_login_url = 'https://accounts.google.com/o/oauth2/v2/auth?scope=' . urlencode('https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email') . '&redirect_uri=' . urlencode(GOOGLE_REDIRECT_URL) . '&response_type=code&client_id=' . GOOGLE_CLIENT_ID . '&access_type=online&prompt=select_account';
                         ?>
                         <a href="<?php echo $google_login_url; ?>" class="btn btn-block"
                             style="background-color: #fff; color: #757575; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px;">
@@ -129,7 +129,7 @@
                 </p>
             </div>
             <div class="auth-right">
-                <img src="assets/img/login_side.png" alt="Welcome Back"
+                <img src="assets/img/login_side.png?v=<?php echo time(); ?>" alt="Welcome Back"
                     style="width: 100%; height: 100%; object-fit: cover;">
             </div>
         </div>

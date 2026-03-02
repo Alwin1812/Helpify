@@ -78,8 +78,8 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
         /* Sidebar */
         .sidebar {
             width: var(--sidebar-width);
-            background: white;
-            border-right: 1px solid #E5E7EB;
+            background: #FFFFFF;
+            border-right: 1px solid #F3F4F6;
             position: fixed;
             top: 0;
             left: 0;
@@ -87,6 +87,7 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
             display: flex;
             flex-direction: column;
             z-index: 50;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.02);
         }
 
         .sidebar-header {
@@ -94,17 +95,18 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
             display: flex;
             align-items: center;
             padding: 0 1.5rem;
-            border-bottom: 1px solid #E5E7EB;
+            border-bottom: 1px solid #F3F4F6;
         }
 
         .logo-text {
             font-size: 1.5rem;
-            font-weight: 800;
-            color: var(--primary-color);
+            font-weight: 900;
+            color: #111827;
             text-decoration: none;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            letter-spacing: -0.5px;
         }
 
         .nav-menu {
@@ -112,37 +114,63 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
             padding: 1.5rem 1rem;
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.25rem;
+            overflow-y: auto;
+        }
+
+        .nav-section-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #9CA3AF;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin: 1.5rem 0 0.5rem 1rem;
+        }
+
+        .nav-section-title:first-child {
+            margin-top: 0;
         }
 
         .nav-link {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            color: var(--text-light);
+            padding: 0.85rem 1rem;
+            border-radius: 10px;
+            color: #4B5563;
             text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
         }
 
-        .nav-link:hover,
+        .nav-link:hover {
+            background-color: #F9FAFB;
+            color: #111827;
+            transform: translateX(4px);
+        }
+
         .nav-link.active {
-            background-color: #F3F4F6;
-            color: var(--primary-color);
+            background-color: #EFF6FF;
+            color: #2563EB;
         }
 
         .nav-link .material-icons {
-            font-size: 20px;
+            font-size: 22px;
+            transition: color 0.2s ease;
+        }
+
+        .nav-link.active .material-icons {
+            color: #2563EB;
         }
 
         .user-profile-mini {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #E5E7EB;
+            padding: 1.25rem 1.5rem;
+            border-top: 1px solid #F3F4F6;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
+            background: #FAFAFA;
         }
 
         /* Main Content */
@@ -307,15 +335,19 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
     <aside class="sidebar">
         <div class="sidebar-header">
             <a href="index.php" class="logo-text">
-                <span class="material-icons" style="font-size: 28px;">admin_panel_settings</span> Helpify
+                <span class="material-icons" style="font-size: 28px; color: #2563EB;">admin_panel_settings</span>
+                Helpify
             </a>
         </div>
 
         <nav class="nav-menu">
+            <div class="nav-section-title">Main Menu</div>
             <a href="admin_dashboard.php?role=all"
                 class="nav-link <?php echo $role_filter === 'all' ? 'active' : ''; ?>">
-                <span class="material-icons">dashboard</span> Dashboard
+                <span class="material-icons">dashboard</span> Dashboard Overview
             </a>
+
+            <div class="nav-section-title">User Management</div>
             <a href="admin_dashboard.php?role=user"
                 class="nav-link <?php echo $role_filter === 'user' ? 'active' : ''; ?>">
                 <span class="material-icons">people</span> Manage Users
@@ -324,23 +356,42 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                 class="nav-link <?php echo $role_filter === 'helper' ? 'active' : ''; ?>">
                 <span class="material-icons">engineering</span> Manage Helpers
             </a>
-            <a href="#" class="nav-link" style="opacity: 0.5; cursor: not-allowed;">
+
+            <div class="nav-section-title">Operations</div>
+            <a href="admin_dashboard.php?role=bookings"
+                class="nav-link <?php echo $role_filter === 'bookings' ? 'active' : ''; ?>">
+                <span class="material-icons">book_online</span> All Bookings
+            </a>
+            <a href="admin_dashboard.php?role=reviews"
+                class="nav-link <?php echo $role_filter === 'reviews' ? 'active' : ''; ?>">
+                <span class="material-icons">star_rate</span> Service Reviews
+            </a>
+            <a href="admin_dashboard.php?role=payments"
+                class="nav-link <?php echo $role_filter === 'payments' ? 'active' : ''; ?>">
+                <span class="material-icons">payments</span> Transactions
+            </a>
+
+            <div class="nav-section-title">System</div>
+            <a href="admin_dashboard.php?role=settings"
+                class="nav-link <?php echo $role_filter === 'settings' ? 'active' : ''; ?>">
                 <span class="material-icons">settings</span> Settings
             </a>
         </nav>
 
         <div class="user-profile-mini">
             <div
-                style="width: 32px; height: 32px; background: #E5E7EB; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                <span class="material-icons" style="font-size: 20px; color: #6B7280;">person</span>
+                style="width: 36px; height: 36px; background: #2563EB; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;">
+                <span class="material-icons" style="font-size: 20px;">admin_panel_settings</span>
             </div>
             <div style="flex: 1;">
-                <div style="font-size: 0.9rem; font-weight: 600;">
+                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">
                     <?php echo htmlspecialchars($_SESSION['user_name']); ?>
                 </div>
-                <div style="font-size: 0.75rem; color: var(--text-light);">Administrator</div>
+                <div style="font-size: 0.8rem; color: #6B7280;">Super Admin</div>
             </div>
-            <a href="api/logout.php" style="color: var(--danger);"><span class="material-icons">logout</span></a>
+            <a href="api/logout.php" style="color: #EF4444; transition: transform 0.2s;"
+                onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'"><span
+                    class="material-icons">logout</span></a>
         </div>
     </aside>
 
@@ -523,6 +574,21 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!in_array($role_filter, ['all', 'user', 'helper'])): ?>
+                <div class="content-card"
+                    style="padding: 4rem 2rem; text-align: center; border: 1px dashed #D1D5DB; background: #F9FAFB;">
+                    <span class="material-icons"
+                        style="font-size: 64px; color: #9CA3AF; margin-bottom: 1rem;">construction</span>
+                    <h3 style="font-size: 1.5rem; color: #111827; margin-bottom: 0.5rem; font-weight: 700;">Module in
+                        Development</h3>
+                    <p style="color: #6B7280; max-width: 400px; margin: 0 auto; line-height: 1.5;">
+                        The <strong style="color: #4B5563; text-transform: capitalize;">
+                            <?php echo htmlspecialchars($role_filter); ?>
+                        </strong> module is currently being built and will be available in the next system update.
+                    </p>
                 </div>
             <?php endif; ?>
 

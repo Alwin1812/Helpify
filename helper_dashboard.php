@@ -353,80 +353,80 @@ $my_jobs = $stmt->fetchAll();
             <!-- My Jobs Section -->
             <div id="jobs-section" class="tab-content" style="display: none;">
                 <h2 style="font-size: 1.5rem; color: #111827; margin-bottom: 1.5rem;">Job History</h2>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Client</th>
-                                <th>Service Details</th>
-                                <th>Schedule</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($my_jobs as $job): ?>
-                                <tr>
-                                    <td>
-                                        <div class="flex items-center gap-4">
-                                            <div
-                                                style="width: 36px; height: 36px; background: #E0E7FF; color: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">
-                                                <?php echo strtoupper(substr($job['user_name'], 0, 1)); ?>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; color: #111827;">
-                                                    <?php echo htmlspecialchars($job['user_name']); ?>
-                                                </div>
-                                                <div style="font-size: 0.8rem; color: #6B7280;">ID:
-                                                    #<?php echo $job['id']; ?></div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span
-                                            style="font-weight: 500; color: #374151;"><?php echo htmlspecialchars($job['service_name']); ?></span>
+                <div class="grid" style="gap: 1.5rem;">
+                    <?php if (count($my_jobs) > 0): ?>
+                        <?php foreach ($my_jobs as $job): ?>
+                            <div class="card" style="border-left: 4px solid var(--primary-color);">
+                                <div class="flex justify-between items-start" style="flex-wrap: wrap; gap: 1rem;">
+                                    <div class="flex gap-4 items-start">
                                         <div
-                                            style="font-size: 0.8rem; color: #6B7280; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                                            <?php echo htmlspecialchars($job['location']); ?>
+                                            style="width: 56px; height: 56px; background: #E0E7FF; color: #4F46E5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.25rem;">
+                                            <?php echo strtoupper(substr($job['user_name'], 0, 1)); ?>
                                         </div>
-                                    </td>
-                                    <td>
-                                        <div style="color: #374151; font-weight: 500;">
-                                            <?php echo date('d M Y', strtotime($job['date'])); ?>
+                                        <div>
+                                            <h4 style="font-size: 1.1rem; margin-bottom: 0.25rem;">
+                                                <?php echo htmlspecialchars($job['service_name']); ?>
+                                            </h4>
+                                            <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                                                Client: <strong
+                                                    style="color: var(--text-color);"><?php echo htmlspecialchars($job['user_name']); ?></strong>
+                                                <span
+                                                    style="font-size: 0.8rem; color: #9CA3AF; margin-left: 0.5rem;">#<?php echo $job['id']; ?></span>
+                                            </p>
+                                            <div class="flex gap-4" style="font-size: 0.85rem; color: #4B5563;">
+                                                <span class="flex items-center gap-1">
+                                                    <span class="material-icons" style="font-size: 16px;">calendar_today</span>
+                                                    <?php echo date('d M Y', strtotime($job['date'])); ?>
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <span class="material-icons" style="font-size: 16px;">schedule</span>
+                                                    <?php echo $job['time'] ? date('h:i A', strtotime($job['time'])) : 'Flexible'; ?>
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div style="font-size: 0.8rem; color: #6B7280;">
-                                            <?php echo $job['time'] ? date('h:i A', strtotime($job['time'])) : 'Flexible'; ?>
+                                    </div>
+
+                                    <div class="text-center" style="min-width: 120px;">
+                                        <div style="margin-bottom: 0.5rem;">
+                                            <span class="status-badge status-<?php echo $job['status']; ?>">
+                                                <?php echo ucfirst($job['status']); ?>
+                                            </span>
                                         </div>
-                                    </td>
-                                    <td>
-                                        <span class="status-badge status-<?php echo $job['status']; ?>">
-                                            <?php echo ucfirst($job['status']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
                                         <?php if ($job['status'] === 'confirmed'): ?>
                                             <form action="api/booking_action.php" method="POST">
                                                 <input type="hidden" name="action" value="complete">
                                                 <input type="hidden" name="booking_id" value="<?php echo $job['id']; ?>">
                                                 <button type="submit" class="btn btn-primary"
-                                                    style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 6px; width: 100%;">
                                                     Mark Done
                                                 </button>
                                             </form>
-                                        <?php else: ?>
-                                            <span style="color: #9CA3AF; font-size: 1.25rem;">&bull;&bull;&bull;</span>
+                                        <?php elseif ($job['status'] === 'completed'): ?>
+                                            <span
+                                                style="color: #10B981; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                                                <span class="material-icons" style="font-size: 16px;">task_alt</span> Paid
+                                            </span>
                                         <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (empty($my_jobs)): ?>
-                                <tr>
-                                    <td colspan="5" style="text-align: center; color: #9CA3AF; padding: 2rem;">No jobs
-                                        found.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                    </div>
+                                </div>
+                                <hr style="border: 0; border-top: 1px solid #F3F4F6; margin: 1.25rem 0;">
+                                <div
+                                    style="font-size: 0.9rem; color: #4B5563; background: #F9FAFB; padding: 0.75rem; border-radius: 6px; display: flex; gap: 8px;">
+                                    <span class="material-icons"
+                                        style="font-size: 18px; color: var(--primary-color);">location_on</span>
+                                    <span><?php echo htmlspecialchars($job['location']); ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div
+                            style="text-align: center; padding: 4rem 2rem; background: white; border-radius: 12px; border: 1px dashed #E5E7EB;">
+                            <span class="material-icons"
+                                style="font-size: 48px; color: #D1D5DB; margin-bottom: 1rem;">event_busy</span>
+                            <h3 style="color: #6B7280; font-size: 1.1rem;">No active jobs</h3>
+                            <p style="color: #9CA3AF;">You don't have any matching active or past jobs yet.</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -471,22 +471,26 @@ $my_jobs = $stmt->fetchAll();
                                 <div class="input-group">
                                     <label>Full Name</label>
                                     <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['name']); ?></div>
+                                        <?php echo htmlspecialchars($helper['name']); ?>
+                                    </div>
                                 </div>
                                 <div class="input-group">
                                     <label>Phone Number</label>
                                     <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['phone_number'] ?? 'Not set'); ?></div>
+                                        <?php echo htmlspecialchars($helper['phone_number'] ?? 'Not set'); ?>
+                                    </div>
                                 </div>
                                 <div class="input-group">
                                     <label>Gender</label>
                                     <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['gender'] ?? 'Not set'); ?></div>
+                                        <?php echo htmlspecialchars($helper['gender'] ?? 'Not set'); ?>
+                                    </div>
                                 </div>
                                 <div class="input-group">
                                     <label>Hourly Rate (₹)</label>
                                     <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['hourly_rate'] ?? 'Not set'); ?></div>
+                                        <?php echo htmlspecialchars($helper['hourly_rate'] ?? 'Not set'); ?>
+                                    </div>
                                 </div>
                                 <div class="input-group">
                                     <label>Job Category</label>
@@ -500,13 +504,15 @@ $my_jobs = $stmt->fetchAll();
                             <div class="input-group" style="margin-top: 1.5rem;">
                                 <label>Address</label>
                                 <div class="form-control" style="background: #F3F4F6; min-height: 60px;">
-                                    <?php echo htmlspecialchars($helper['address'] ?? 'Not set'); ?></div>
+                                    <?php echo htmlspecialchars($helper['address'] ?? 'Not set'); ?>
+                                </div>
                             </div>
 
                             <div class="input-group">
                                 <label>Bio</label>
                                 <div class="form-control" style="background: #F3F4F6; min-height: 80px;">
-                                    <?php echo htmlspecialchars($helper['bio'] ?? 'No bio provided'); ?></div>
+                                    <?php echo htmlspecialchars($helper['bio'] ?? 'No bio provided'); ?>
+                                </div>
                             </div>
                         </div>
                     </div>

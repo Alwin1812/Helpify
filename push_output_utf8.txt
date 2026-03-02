@@ -1,0 +1,105 @@
+﻿git : remote: error: GH013: 
+Repository rule violations 
+found for refs/heads/main.   
+     
+At line:1 char:1
++ git push -f origin 
+HEAD:main 2>&1 | Out-File 
+-Encoding utf8 push_outp ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (remote:  
+   error: ...s/main.         
+   :String) [], RemoteExc    
+eption
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+remote: 
+remote: - GITHUB PUSH 
+PROTECTION        
+remote:   ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇö        
+remote:     Resolve the 
+following violations before 
+pushing again        
+remote: 
+remote:     - Push cannot 
+contain secrets        
+remote: 
+remote:             
+remote:      (?) Learn how 
+to resolve a blocked push    
+    
+remote:      https://docs.git
+hub.com/code-security/secret-
+scanning/working-with-secret-
+scanning-and-push-protection/
+working-with-push-protection-
+from-the-command-line#resolvi
+ng-a-blocked-push        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Google 
+OAuth Client ID ΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇö        
+remote:        locations:    
+    
+remote:          - commit: 44
+187ef45f3fbc2d0314e5a9e48cddd
+f32d2815d        
+remote:            path: incl
+udes/google_config.php:10    
+    
+remote:             
+remote:        (?) To push, 
+remove secret from commit(s) 
+or follow this URL to allow 
+the secret.        
+remote:        https://github
+.com/Alwin1812/Helpify/securi
+ty/secret-scanning/unblock-se
+cret/3ANVw5nEtQ2beLAhEYLNOW5i
+fkG        
+remote:             
+remote:             
+remote:       ΓÇöΓÇö Google 
+OAuth Client Secret ΓÇöΓÇöΓÇö
+ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇ
+öΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓ
+ÇöΓÇö        
+remote:        locations:    
+    
+remote:          - commit: 44
+187ef45f3fbc2d0314e5a9e48cddd
+f32d2815d        
+remote:            path: incl
+udes/google_config.php:14    
+    
+remote:             
+remote:        (?) To push, 
+remove secret from commit(s) 
+or follow this URL to allow 
+the secret.        
+remote:        https://github
+.com/Alwin1812/Helpify/securi
+ty/secret-scanning/unblock-se
+cret/3ANVw85UFHIHp6lzFri9F02h
+pFP        
+remote:             
+remote: 
+remote: 
+To https://github.com/Alwin18
+12/Helpify
+ ! [remote rejected] HEAD -> 
+main (push declined due to 
+repository rule violations)
+error: failed to push some 
+refs to 'https://github.com/A
+lwin1812/Helpify'

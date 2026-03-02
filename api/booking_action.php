@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $pdo->commit();
             $_SESSION['success'] = "$booked_count Booking request(s) sent successfully! Waiting for helpers to accept.";
-            header('Location: ../dashboard.php');
+            header('Location: ../booking_success.php');
             exit;
         } catch (PDOException $e) {
             $pdo->rollBack();

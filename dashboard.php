@@ -220,14 +220,85 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             font-weight: 500;
         }
 
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
 
-            to {
-                transform: rotate(360deg);
-            }
+        /* Booking Cards Redesign */
+        .booking-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .booking-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .bc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .bc-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin: 0 0 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .bc-meta {
+            color: var(--text-light);
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .bc-body {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .bc-helper-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .bc-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-size: 24px;
+            overflow: hidden;
+        }
+        .bc-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .bc-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .bc-actions {
+            display: flex;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -266,9 +337,12 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person</span> Profile
             </div>
-            <div class="nav-item cart-nav-item" onclick="openCartModal()" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
-                <div style="display: flex; align-items: center; gap: 1rem;"><span class="material-icons">shopping_cart</span> Cart</div>
-                <span id="cartCountBadge" style="background: var(--warning); color: #000; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 0.8rem;">0</span>
+            <div class="nav-item cart-nav-item" onclick="openCartModal()"
+                style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;"><span
+                        class="material-icons">shopping_cart</span> Cart</div>
+                <span id="cartCountBadge"
+                    style="background: var(--warning); color: #000; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 0.8rem;">0</span>
             </div>
         </div>
 
@@ -629,12 +703,15 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div class="modal-content">
                     <span class="close" onclick="closeBookingModal()">&times;</span>
                     <h2>Cart Checkout</h2>
-                    <div id="cartItemsContainer" style="margin: 1rem 0; max-height: 200px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem;">
+                    <div id="cartItemsContainer"
+                        style="margin: 1rem 0; max-height: 200px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem;">
                         <p style="text-align:center; color: var(--text-light); margin:0;">Your cart is empty.</p>
                     </div>
-                    <div style="text-align: right; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Total: ₹<span id="cartTotalDisplay">0</span></div>
-                    
-                    <form action="api/booking_action.php" method="POST" id="checkoutForm" onsubmit="return validateCheckout()">
+                    <div style="text-align: right; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Total:
+                        ₹<span id="cartTotalDisplay">0</span></div>
+
+                    <form action="api/booking_action.php" method="POST" id="checkoutForm"
+                        onsubmit="return validateCheckout()">
                         <input type="hidden" name="action" value="book">
                         <div id="cartHiddenInputs"></div>
 
@@ -656,19 +733,15 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 <label style="margin: 0;">Location</label>
                                 <button type="button" class="btn btn-outline"
                                     style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;"
-                                    onclick="getCurrentLocation()">
+                                    onclick="getCurrentLocation(this)">
                                     <span class="material-icons" style="font-size: 14px;">my_location</span> Use Current
                                     Location
                                 </button>
                             </div>
                             <div class="location-container">
-                                <input type="text" name="location" id="locationInput"
-                                    class="form-control input-with-button" placeholder="Your Address" required
-                                    oninput="validateBookingField(this)">
-                                <button type="button" class="locate-btn" onclick="getCurrentLocation()"
-                                    title="Use current location">
-                                    <span class="material-icons">my_location</span>
-                                </button>
+                                <input type="text" name="location" id="locationInput" class="form-control"
+                                    placeholder="Your Address" required oninput="validateBookingField(this)"
+                                    style="padding-right: 15px;">
                             </div>
                             <div class="error-message" id="locationError">Please provide a service location.</div>
                         </div>
@@ -683,80 +756,97 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
             <!-- History Section -->
             <div id="history-section" class="tab-content" style="display: none;">
-                <h3 style="margin-bottom: 2rem;">Booking History</h3>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Service</th>
-                                <th>Details</th>
-                                <th>Date/Time</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (count($bookings) > 0): ?>
-                                <?php foreach ($bookings as $booking): ?>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($booking['service_name']); ?></td>
-                                        <td>
-                                            <?php if ($booking['helper_name']): ?>
-                                                Helper: <b><?php echo htmlspecialchars($booking['helper_name']); ?></b><br>
-                                            <?php endif; ?>
-                                            <small><?php echo htmlspecialchars($booking['location'] ?? 'No location'); ?></small>
-                                        </td>
-                                        <td>
-                                            <?php echo date('d-M-Y', strtotime($booking['date'])); ?>
-                                            <br>
-                                            <small><?php echo $booking['time'] ? date('h:i A', strtotime($booking['time'])) : ''; ?></small>
-                                        </td>
-                                        <td>
-                                            <span class="status-badge status-<?php echo $booking['status']; ?>">
-                                                <?php echo ucfirst($booking['status']); ?>
-                                            </span>
-                                            <?php if ($booking['status'] === 'accepted' && isset($applicants[$booking['id']])): ?>
-                                                <br><small style="color: purple;"><?php echo count($applicants[$booking['id']]); ?>
-                                                    helpers applied</small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($booking['status'] == 'accepted' && isset($applicants[$booking['id']])): ?>
-                                                <button class="btn btn-primary"
-                                                    onclick='showApplicants(<?php echo json_encode($applicants[$booking['id']]); ?>, <?php echo $booking['id']; ?>)'>
-                                                    Select Helper
-                                                </button>
-                                            <?php elseif ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
-                                                <form action="api/booking_action.php" method="POST" style="display:inline;"
-                                                    onsubmit="return confirm('Are you sure you want to cancel this booking?');">
-                                                    <input type="hidden" name="action" value="cancel">
-                                                    <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                                    <button type="submit" class="btn btn-outline"
-                                                        style="padding: 0.25rem 0.75rem; font-size: 0.875rem; color: #DC2626; border-color: #DC2626; margin-left: 0.5rem;">
-                                                        Cancel
-                                                    </button>
-                                                </form>
-                                            <?php elseif ($booking['status'] == 'completed'): ?>
-                                                <?php if (in_array($booking['id'], $reviewed_bookings)): ?>
-                                                    <button class="btn btn-outline" disabled>Reviewed</button>
+                <h3 style="margin-bottom: 2rem;">My Bookings</h3>
+                <div class="booking-list">
+                    <?php if (count($bookings) > 0): ?>
+                        <?php foreach ($bookings as $booking): ?>
+                            <div class="booking-card">
+                                <div class="bc-header">
+                                    <div>
+                                        <h4 class="bc-title">
+                                            <span class="material-icons" style="font-size: 18px; color: var(--primary-color);">build_circle</span>
+                                            <?php echo htmlspecialchars($booking['service_name']); ?>
+                                        </h4>
+                                        <div class="bc-meta">
+                                            <span class="material-icons" style="font-size: 14px;">event</span>
+                                            <?php echo date('d M Y', strtotime($booking['date'])); ?> 
+                                            <?php echo $booking['time'] ? 'at ' . date('h:i A', strtotime($booking['time'])) : ''; ?>
+                                        </div>
+                                    </div>
+                                    <span class="status-badge status-<?php echo $booking['status']; ?>">
+                                        <?php echo ucfirst($booking['status']); ?>
+                                    </span>
+                                </div>
+                                
+                                <div class="bc-body">
+                                    <div class="bc-helper-info">
+                                        <?php if ($booking['helper_name']): ?>
+                                            <div class="bc-avatar">
+                                                <span class="material-icons">person</span>
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 0.95rem;"><?php echo htmlspecialchars($booking['helper_name']); ?></div>
+                                                <div style="font-size: 0.8rem; color: var(--text-light);">Assigned Helper</div>
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="bc-avatar" style="background: #fdf2f8; color: #db2777;">
+                                                <span class="material-icons">hourglass_empty</span>
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-light);">Finding a pro...</div>
+                                                <?php if ($booking['status'] === 'accepted' && isset($applicants[$booking['id']])): ?>
+                                                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600;">
+                                                        <?php echo count($applicants[$booking['id']]); ?> helpers applied!
+                                                    </div>
                                                 <?php else: ?>
-                                                    <button class="btn btn-primary"
-                                                        onclick="openReviewModal(<?php echo $booking['id']; ?>)">Rate</button>
+                                                    <div style="font-size: 0.8rem; color: var(--text-light);">We will notify you soon.</div>
                                                 <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-light); max-width: 200px;">
+                                        <span class="material-icons" style="font-size: 14px; vertical-align: middle;">location_on</span>
+                                        <?php echo htmlspecialchars($booking['location'] ?? 'No location provided'); ?>
+                                    </div>
+                                </div>
+
+                                <div class="bc-footer">
+                                    <div>
+                                        <?php if ($booking['status'] == 'confirmed'): ?>
+                                            <span style="font-size: 0.85rem; color: var(--primary-color); font-weight: 600;">
+                                                <span class="material-icons" style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to message? View details.
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="bc-actions">
+                                        <?php if ($booking['status'] == 'accepted' && isset($applicants[$booking['id']])): ?>
+                                            <button class="btn btn-primary" onclick='showApplicants(<?php echo json_encode($applicants[$booking['id']]); ?>, <?php echo $booking['id']; ?>)'>
+                                                Select Helper
+                                            </button>
+                                        <?php elseif ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
+                                            <form action="api/booking_action.php" method="POST" style="margin: 0;" onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+                                                <input type="hidden" name="action" value="cancel">
+                                                <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
+                                                <button type="submit" class="btn btn-outline" style="color: #DC2626; border-color: #DC2626;">Cancel Booking</button>
+                                            </form>
+                                        <?php elseif ($booking['status'] == 'completed'): ?>
+                                            <?php if (in_array($booking['id'], $reviewed_bookings)): ?>
+                                                <button class="btn btn-outline" disabled style="background: #f3f4f6;">Reviewed</button>
                                             <?php else: ?>
-                                                <button class="btn btn-outline" disabled style="opacity: 0.5;">-</button>
+                                                <button class="btn btn-primary" onclick="openReviewModal(<?php echo $booking['id']; ?>)">Leave a Review</button>
                                             <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="5" style="text-align: center; color: var(--text-light);">No bookings found.
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed var(--border-color);">
+                            <span class="material-icons" style="font-size: 48px; color: #d1d5db; margin-bottom: 1rem;">event_busy</span>
+                            <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">No bookings yet</h4>
+                            <p style="color: var(--text-light); font-size: 0.9rem;">You haven't requested any services yet. Head over to the Book tab!</p>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -1003,7 +1093,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         function addToCart(serviceId, serviceName, basePrice, btnElement) {
             cart.push({ id: serviceId, name: serviceName, price: parseFloat(basePrice) });
             updateCartUI();
-            
+
             if (btnElement) {
                 const originalText = btnElement.innerHTML;
                 btnElement.innerHTML = 'Added ✔';
@@ -1026,19 +1116,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         function updateCartUI() {
             document.getElementById('cartCountBadge').innerText = cart.length;
-            
+
             const container = document.getElementById('cartItemsContainer');
             const totalDisplay = document.getElementById('cartTotalDisplay');
             const hiddenInputs = document.getElementById('cartHiddenInputs');
-            
+
             hiddenInputs.innerHTML = '';
-            
+
             if (cart.length === 0) {
                 container.innerHTML = '<p style="text-align:center; color: var(--text-light); margin:0;">Your cart is empty.</p>';
                 totalDisplay.innerText = '0';
                 return;
             }
-            
+
             let total = 0;
             let html = '';
             cart.forEach((item, index) => {
@@ -1056,7 +1146,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 `;
                 hiddenInputs.innerHTML += `<input type="hidden" name="service_ids[]" value="${item.id}">`;
             });
-            
+
             container.innerHTML = html;
             totalDisplay.innerText = total;
         }
@@ -1110,11 +1200,15 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             }
         }
 
-        function getCurrentLocation() {
+        function getCurrentLocation(btnElement) {
             if (navigator.geolocation) {
-                const btn = document.querySelector('.locate-btn');
-                const originalIcon = btn.innerHTML;
-                btn.innerHTML = '<span class="material-icons" style="animation: spin 1s linear infinite">sync</span>';
+                // If btnElement is provided, use it, else fallback to finding a generic button (for backwards compatibility)
+                const btn = btnElement || document.querySelector('.btn-outline[onclick*="getCurrentLocation"]');
+                let originalIcon = '<span class="material-icons" style="font-size: 14px;">my_location</span> Use Current Location';
+                if (btn) {
+                    originalIcon = btn.innerHTML;
+                    btn.innerHTML = '<span class="material-icons" style="animation: spin 1s linear infinite; font-size: 14px;">sync</span> Loading...';
+                }
 
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
@@ -1125,11 +1219,11 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         map.setView(latlng, 16);
                         marker.setLatLng(latlng);
                         reverseGeocode(lat, lng);
-                        btn.innerHTML = originalIcon;
+                        if (btn) btn.innerHTML = originalIcon;
                     },
                     (error) => {
                         alert("Geolocation failed: " + error.message);
-                        btn.innerHTML = originalIcon;
+                        if (btn) btn.innerHTML = originalIcon;
                     }
                 );
             } else {

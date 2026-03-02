@@ -1,14 +1,5 @@
 <?php
 session_start();
-require_once 'includes/db_connect.php';
-
-// Fetch services for the form
-try {
-    $stmt = $pdo->query("SELECT * FROM services");
-    $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $services = []; // Fail gracefully
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -38,26 +29,7 @@ try {
             font-weight: 500;
         }
     </style>
-    <script>
-        function selectRole(role) {
-            document.getElementById('roleInput').value = role;
-            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('btn-' + role).classList.add('active');
 
-            const jobRoleContainer = document.getElementById('job-role-container');
-            const jobRoleSelect = document.getElementById('job-role-select');
-
-            if (role === 'helper') {
-                jobRoleContainer.style.display = 'block';
-                jobRoleSelect.required = true;
-            } else {
-                jobRoleContainer.style.display = 'none';
-                jobRoleSelect.required = false;
-            }
-        }
-
-
-    </script>
 </head>
 
 <body>
@@ -85,7 +57,7 @@ try {
         <div class="auth-box">
             <div class="auth-left">
                 <h2 style="margin-bottom: 0.5rem; font-size: 2rem; color: var(--primary-dark);">Create Account</h2>
-                <p style="margin-bottom: 2rem; color: var(--text-light);">Join Helpify as a user or a helper</p>
+                <p style="margin-bottom: 2rem; color: var(--text-light);">Join Helpify to easily book reliable services</p>
 
                 <?php if (isset($_SESSION['error'])): ?>
                     <div
@@ -98,13 +70,6 @@ try {
                 <form action="api/auth_handler.php" method="POST">
                     <input type="hidden" name="action" value="register">
                     <input type="hidden" name="role" id="roleInput" value="user">
-
-                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-light);">I
-                        am a:</label>
-                    <div class="auth-tabs">
-                        <div id="btn-user" class="role-btn active" onclick="selectRole('user')">User (Customer)</div>
-                        <div id="btn-helper" class="role-btn" onclick="selectRole('helper')">Helper (Provider)</div>
-                    </div>
 
                     <div class="input-group">
                         <label>Full Name</label>
@@ -127,27 +92,6 @@ try {
                         <div class="error-message">Password must be at least 6 characters.</div>
                     </div>
 
-                    <!-- Job Role Selection (Hidden by default) -->
-                    <div id="job-role-container" style="display: none; margin-bottom: 1.5rem;">
-                        <div class="input-group">
-                            <label>Job Category</label>
-                            <select name="job_role" id="job-role-select"
-                                style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; background: #fff;">
-                                <option value="" disabled selected>Select your job category...</option>
-                                <?php
-                                if (!empty($services)) {
-                                    foreach ($services as $service) {
-                                        echo '<option value="' . htmlspecialchars($service['name']) . '">' . htmlspecialchars($service['name']) . '</option>';
-                                    }
-                                } else {
-                                    // Fallback if services not loaded
-                                    echo '<option value="Cleaning">Cleaning</option>';
-                                }
-                                ?>
-                            </select>
-                        </div>
-                    </div>
-
 
 
 
@@ -162,7 +106,7 @@ try {
                     require_once 'includes/google_config.php';
                     // Default link for 'user'
                     if (defined('GOOGLE_CLIENT_ID') && GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID') {
-                        $base_google_url = 'https://accounts.google.com/o/oauth2/v2/auth?scope=' . urlencode('https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email') . '&redirect_uri=' . urlencode(GOOGLE_REDIRECT_URL) . '&response_type=code&client_id=' . GOOGLE_CLIENT_ID . '&access_type=online';
+                        $base_google_url = 'https://accounts.google.com/o/oauth2/v2/auth?scope=' . urlencode('https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email') . '&redirect_uri=' . urlencode(GOOGLE_REDIRECT_URL) . '&response_type=code&client_id=' . GOOGLE_CLIENT_ID . '&access_type=online&prompt=select_account';
                         $google_signup_url = $base_google_url . '&state=user'; // Default state
                         ?>
                         <a href="<?php echo $google_signup_url; ?>" id="google-signup-btn" class="btn btn-block"
@@ -174,34 +118,6 @@ try {
                         <script>
                             // Store base URL in JS variable
                             const baseGoogleUrl = "<?php echo $base_google_url; ?>";
-
-                            // Override selectRole function to update Google Link
-                            const originalSelectRole = window.selectRole;
-                            window.selectRole = function (role) {
-                                // Call original logic logic is actually easier to just copy-paste completely or fix it.
-                                // Let's just fix the implementation here to include job-role-container
-
-                                document.getElementById('roleInput').value = role;
-                                document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
-                                document.getElementById('btn-' + role).classList.add('active');
-
-                                const jobRoleContainer = document.getElementById('job-role-container');
-                                const jobRoleSelect = document.getElementById('job-role-select');
-
-                                if (role === 'helper') {
-                                    jobRoleContainer.style.display = 'block';
-                                    jobRoleSelect.required = true;
-                                } else {
-                                    jobRoleContainer.style.display = 'none';
-                                    jobRoleSelect.required = false;
-                                }
-
-                                // Update Google Link state
-                                const googleBtn = document.getElementById('google-signup-btn');
-                                if (googleBtn) {
-                                    googleBtn.href = baseGoogleUrl + '&state=' + role;
-                                }
-                            }
 
                             function validateRegField(input) {
                                 const errorEl = input.nextElementSibling;
@@ -267,7 +183,7 @@ try {
                 </p>
             </div>
             <div class="auth-right">
-                <img src="assets/img/registration_side.png" alt="Join Our Community"
+                <img src="assets/img/registration_side.png?v=<?php echo time(); ?>" alt="Join Our Community"
                     style="width: 100%; height: 100%; object-fit: cover;">
             </div>
         </div>

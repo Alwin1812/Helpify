@@ -129,27 +129,27 @@ session_start();
                 <!-- Right Side: Image Collage -->
                 <div class="hero-collage">
                     <div class="collage-item large">
-                        <img src="assets/images/service-cleaning.png" alt="Cleaning Service">
+                        <img src="assets/images/feat_cleaning.png" alt="Cleaning Service">
                         <div class="image-overlay">Home Cleaning</div>
                     </div>
                     <div class="collage-item small">
-                        <img src="assets/images/service-cooking.png" alt="Cooking Service">
+                        <img src="assets/images/feat_cooking.png" alt="Cooking Service">
                         <div class="image-overlay">Home Cooking</div>
                     </div>
                     <div class="collage-item small">
-                        <img src="assets/images/service-elderly.png" alt="Elderly Care">
+                        <img src="assets/images/feat_elderly.png" alt="Elderly Care">
                         <div class="image-overlay">Elderly Care</div>
                     </div>
                     <div class="collage-item small">
-                        <img src="assets/images/service-babysitting.png" alt="Babysitting">
+                        <img src="assets/images/feat_babysitting.png" alt="Babysitting">
                         <div class="image-overlay">Babysitting</div>
                     </div>
                     <div class="collage-item small">
-                        <img src="assets/images/service_plumbing.png" alt="Plumbing">
+                        <img src="assets/images/feat_plumbing.png" alt="Plumbing">
                         <div class="image-overlay">Plumbing</div>
                     </div>
                     <div class="collage-item small">
-                        <img src="assets/images/service_electrical.png" alt="Electrical">
+                        <img src="assets/images/feat_electrical.png" alt="Electrical">
                         <div class="image-overlay">Electrical</div>
                     </div>
                 </div>
