@@ -10,10 +10,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
 $helper_id = $_SESSION['user_id'];
 
 // Fetch Helper's Job Role, Email, and Gender
-$stmt = $pdo->prepare("SELECT job_role, email, gender, average_rating, bio, phone_number, address, profile_photo, hourly_rate, name FROM users WHERE id = ?");
+$stmt = $pdo->prepare("SELECT job_role, email, gender, average_rating, bio, phone_number, address, profile_photo, hourly_rate, name, password_changed FROM users WHERE id = ?");
 $stmt->execute([$helper_id]);
 $helper = $stmt->fetch();
 $helper_role = $helper['job_role'];
+
+// Fetch Services for Job Roles
+$stmt = $pdo->query("SELECT * FROM services ORDER BY name ASC");
+$all_services = $stmt->fetchAll();
 
 // Fetch my application details for various bookings
 $stmt = $pdo->prepare("SELECT booking_id, status, bid_price, arrival_estimate, notes FROM booking_requests WHERE helper_id = ?");
@@ -72,8 +76,10 @@ $my_jobs = $stmt->fetchAll();
 
 <body>
     <header>
-        <div class="container flex justify-between items-center" style="height: 100%;">
-            <a href="index.php" class="logo">Helpify</a>
+        <div class="container flex justify-between items-center" style="height: 100%; width: 100%;">
+            <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                <span style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+            </a>
             <nav class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
                 <span style="font-size: 0.9rem; color: var(--text-light);">
                     Helper • <b
@@ -434,89 +440,114 @@ $my_jobs = $stmt->fetchAll();
             <div id="profile-section" class="tab-content" style="display: none;">
                 <h2 style="font-size: 1.5rem; color: #111827; margin-bottom: 2rem;">Edit Profile</h2>
 
-                <div style="background: white; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden;">
-                    <div class="grid" style="grid-template-columns: 300px 1fr; gap: 0;">
+                <form action="api/update_profile.php" method="POST" enctype="multipart/form-data">
+                    <div style="background: white; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden;">
+                        <div class="grid" style="grid-template-columns: 300px 1fr; gap: 0;">
 
-                        <!-- Left Panel: Photo -->
-                        <div
-                            style="background: #F9FAFB; padding: 3rem 2rem; text-align: center; border-right: 1px solid #E5E7EB;">
+                            <!-- Left Panel: Photo -->
                             <div
-                                style="width: 140px; height: 140px; background: white; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: 0 auto 1.5rem; overflow: hidden; position: relative;">
-                                <?php if (!empty($helper['profile_photo'])): ?>
-                                    <img src="<?php echo htmlspecialchars($helper['profile_photo']); ?>"
-                                        style="width: 100%; height: 100%; object-fit: cover;">
-                                <?php else: ?>
+                                style="background: #F9FAFB; padding: 3rem 2rem; text-align: center; border-right: 1px solid #E5E7EB;">
+                                <div
+                                    style="width: 140px; height: 140px; background: white; border-radius: 50%; border: 4px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin: 0 auto 1.5rem; overflow: hidden; position: relative;">
+                                    <?php if (!empty($helper['profile_photo'])): ?>
+                                        <img src="<?php echo htmlspecialchars($helper['profile_photo']); ?>"
+                                            style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <div
+                                            style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #E5E7EB;">
+                                            <span class="material-icons"
+                                                style="font-size: 64px; color: #9CA3AF;">person</span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <label class="btn btn-outline"
+                                    style="display: inline-block; padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer;">
+                                    Change Photo
+                                    <input type="file" name="profile_photo" accept="image/png, image/jpeg, image/webp"
+                                        style="display: none;">
+                                </label>
+
+                                <h3 style="margin-top: 1.5rem; margin-bottom: 0.25rem;">
+                                    <?php echo htmlspecialchars($helper['name']); ?>
+                                </h3>
+                                <p style="color: #6B7280; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                                    <?php echo htmlspecialchars($helper['email']); ?>
+                                </p>
+                            </div>
+
+                            <!-- Right Panel: Fields (Editable) -->
+                            <div style="padding: 3rem;">
+                                <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                                    <div class="input-group">
+                                        <label>Full Name</label>
+                                        <input type="text" name="name" class="form-control"
+                                            value="<?php echo htmlspecialchars($helper['name']); ?>" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Phone Number</label>
+                                        <input type="text" name="phone_number" class="form-control"
+                                            value="<?php echo htmlspecialchars($helper['phone_number']); ?>">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Gender</label>
+                                        <select name="gender" class="form-control">
+                                            <option value="">Select Gender</option>
+                                            <option value="Male" <?php echo ($helper['gender'] == 'Male') ? 'selected' : ''; ?>>Male</option>
+                                            <option value="Female" <?php echo ($helper['gender'] == 'Female') ? 'selected' : ''; ?>>Female</option>
+                                            <option value="Other" <?php echo ($helper['gender'] == 'Other') ? 'selected' : ''; ?>>Other</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="input-group">
+                                        <label>Job Category</label>
+                                        <input type="text" class="form-control"
+                                            value="<?php echo htmlspecialchars($helper_role ?? 'General'); ?>"
+                                            style="background: #F9FAFB; color: #6B7280; font-weight: 500;" readonly
+                                            title="Contact an administrator to change your job category">
+                                    </div>
+                                </div>
+
+                                <div class="input-group" style="margin-top: 1.5rem;">
+                                    <label>Address</label>
+                                    <textarea name="address" class="form-control"
+                                        rows="2"><?php echo htmlspecialchars($helper['address']); ?></textarea>
+                                </div>
+
+                                <div class="input-group">
+                                    <label>Bio</label>
+                                    <textarea name="bio" class="form-control"
+                                        rows="3"><?php echo htmlspecialchars($helper['bio']); ?></textarea>
+                                </div>
+
+                                <?php if (isset($helper['password_changed']) && $helper['password_changed'] == 0): ?>
                                     <div
-                                        style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #E5E7EB;">
-                                        <span class="material-icons" style="font-size: 64px; color: #9CA3AF;">person</span>
+                                        style="margin-top: 1.5rem; background: #FEF2F2; padding: 1.5rem; border-radius: 8px; border: 1px solid #FECACA;">
+                                        <h4 style="color: #991B1B; margin-bottom: 1rem; font-size: 1rem;">Update Default
+                                            Password</h4>
+                                        <p style="font-size: 0.85rem; color: #DC2626; margin-bottom: 1rem;">Please set a new
+                                            secure password. This option is only available once to secure your account.</p>
+                                        <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                            <div class="input-group" style="margin: 0;">
+                                                <input type="password" name="new_password" class="form-control"
+                                                    placeholder="New Password" minlength="6">
+                                            </div>
+                                            <div class="input-group" style="margin: 0;">
+                                                <input type="password" name="confirm_password" class="form-control"
+                                                    placeholder="Confirm Password" minlength="6">
+                                            </div>
+                                        </div>
                                     </div>
                                 <?php endif; ?>
-                            </div>
 
-                            <h3 style="margin-bottom: 0.25rem;"><?php echo htmlspecialchars($helper['name']); ?></h3>
-                            <p style="color: #6B7280; margin-bottom: 1.5rem; font-size: 0.9rem;">
-                                <?php echo htmlspecialchars($helper['email']); ?>
-                            </p>
-
-                            <div
-                                style="background: #FEF3C7; color: #92400E; padding: 1rem; border-radius: 8px; font-size: 0.85rem; margin-top: 2rem;">
-                                <p style="margin-bottom: 0.5rem;"><strong>Profile Locked</strong></p>
-                                <p>To update your profile details or photo, please contact the administrator.</p>
-                            </div>
-                        </div>
-
-                        <!-- Right Panel: Fields (Read Only) -->
-                        <div style="padding: 3rem;">
-                            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                                <div class="input-group">
-                                    <label>Full Name</label>
-                                    <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['name']); ?>
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <label>Phone Number</label>
-                                    <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['phone_number'] ?? 'Not set'); ?>
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <label>Gender</label>
-                                    <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['gender'] ?? 'Not set'); ?>
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <label>Hourly Rate (₹)</label>
-                                    <div class="form-control" style="background: #F3F4F6;">
-                                        <?php echo htmlspecialchars($helper['hourly_rate'] ?? 'Not set'); ?>
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <label>Job Category</label>
-                                    <div class="form-control" style="background: #F3F4F6;">
-                                        <span
-                                            class="status-badge badge-purple"><?php echo htmlspecialchars($helper_role ?? 'General'); ?></span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="input-group" style="margin-top: 1.5rem;">
-                                <label>Address</label>
-                                <div class="form-control" style="background: #F3F4F6; min-height: 60px;">
-                                    <?php echo htmlspecialchars($helper['address'] ?? 'Not set'); ?>
-                                </div>
-                            </div>
-
-                            <div class="input-group">
-                                <label>Bio</label>
-                                <div class="form-control" style="background: #F3F4F6; min-height: 80px;">
-                                    <?php echo htmlspecialchars($helper['bio'] ?? 'No bio provided'); ?>
+                                <div style="text-align: right; margin-top: 2rem;">
+                                    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Save
+                                        Changes</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                </form>
             </div>
 
         </div>
@@ -538,8 +569,8 @@ $my_jobs = $stmt->fetchAll();
             const navItems = document.querySelectorAll('.nav-item');
             if (navItems[indexMap[sectionId]]) {
                 navItems[indexMap[sectionId]].classList.add('active');
-            }
         }
+ }
     </script>
 </body>
 

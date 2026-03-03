@@ -25,39 +25,7 @@ $stmt = $pdo->prepare("
 $stmt->execute([$user_id]);
 $bookings = $stmt->fetchAll();
 
-// Fetch Applicants for Accepted Bookings
-$booking_ids = array_column($bookings, 'id');
-$applicants = [];
-if (!empty($booking_ids)) {
-    $placeholders = str_repeat('?,', count($booking_ids) - 1) . '?';
-    $stmt = $pdo->prepare("
-        SELECT br.*, u.name, u.gender, u.job_role, u.profile_photo, u.average_rating, u.hourly_rate, u.bio
-        FROM booking_requests br
-        JOIN users u ON br.helper_id = u.id
-        WHERE br.booking_id IN ($placeholders) AND br.status = 'accepted'
-    ");
-    $stmt->execute($booking_ids);
-    $rows = $stmt->fetchAll();
 
-    foreach ($rows as $row) {
-        // Mock completed jobs count for now ... (omitted comments)
-        $stmt_count = $pdo->prepare("SELECT COUNT(*) FROM bookings WHERE helper_id = ? AND status = 'completed'");
-        $stmt_count->execute([$row['helper_id']]);
-        $row['completed_jobs_count'] = $stmt_count->fetchColumn();
-
-        $applicants[$row['booking_id']][] = $row;
-    }
-
-    // Sort applicants by Rating DESC, then Jobs DESC
-    foreach ($applicants as $bid => &$apps) {
-        usort($apps, function ($a, $b) {
-            if ($a['average_rating'] == $b['average_rating']) {
-                return $b['completed_jobs_count'] - $a['completed_jobs_count'];
-            }
-            return ($b['average_rating'] < $a['average_rating']) ? -1 : 1;
-        });
-    }
-}
 
 // Fetch Notifications
 $stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id = ? AND is_read = 0 ORDER BY created_at DESC");
@@ -221,24 +189,34 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
         }
 
         /* Booking Cards Redesign */
         .booking-card {
             background: white;
             border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
             padding: 1.5rem;
             margin-bottom: 1rem;
             border: 1px solid var(--border-color);
             transition: transform 0.2s, box-shadow 0.2s;
         }
+
         .booking-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
+
         .bc-header {
             display: flex;
             justify-content: space-between;
@@ -247,6 +225,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             padding-bottom: 1rem;
             border-bottom: 1px solid #f3f4f6;
         }
+
         .bc-title {
             font-size: 1.1rem;
             font-weight: 700;
@@ -256,6 +235,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             align-items: center;
             gap: 8px;
         }
+
         .bc-meta {
             color: var(--text-light);
             font-size: 0.85rem;
@@ -263,17 +243,20 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             align-items: center;
             gap: 4px;
         }
+
         .bc-body {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
         }
+
         .bc-helper-info {
             display: flex;
             align-items: center;
             gap: 12px;
         }
+
         .bc-avatar {
             width: 48px;
             height: 48px;
@@ -286,16 +269,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             font-size: 24px;
             overflow: hidden;
         }
+
         .bc-avatar img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
+
         .bc-footer {
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+
         .bc-actions {
             display: flex;
             gap: 0.5rem;
@@ -307,7 +293,10 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
     <header>
         <div
             style="width: 100%; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; height: 100%;">
-            <a href="index.php" class="logo">Helpify</a>
+            <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                <span
+                    style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+            </a>
             <nav class="nav-links" style="display: flex; align-items: center;">
                 <span>Welcome, <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b></span>
                 <a href="api/logout.php" class="btn btn-primary" style="margin-left: 1rem;">Logout</a>
@@ -382,131 +371,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     </div>
                 <?php endif; ?>
 
-                <!-- Booking Applications Preview -->
-                <?php
-                $has_applications = false;
-                foreach ($bookings as $b) {
-                    if (isset($applicants[$b['id']]) && count($applicants[$b['id']]) > 0) {
-                        $has_applications = true;
-                        break;
-                    }
-                }
-                ?>
 
-                <?php if ($has_applications): ?>
-                    <h3 style="margin-bottom: 1rem;">Review Applications</h3>
-                    <div class="grid"
-                        style="grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                        <?php foreach ($bookings as $booking): ?>
-                            <?php if (isset($applicants[$booking['id']]) && count($applicants[$booking['id']]) > 0): ?>
-                                <div
-                                    style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                                    <div
-                                        style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                        <div>
-                                            <h4 style="margin: 0;">
-                                                <?php echo htmlspecialchars($booking['service_name']); ?>
-                                            </h4>
-                                            <small style="color: #666;">
-                                                <?php echo date('d M, h:i A', strtotime($booking['date'])); ?>
-                                            </small>
-                                        </div>
-                                        <span
-                                            style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600;">
-                                            <?php echo count($applicants[$booking['id']]); ?> Applied
-                                        </span>
-                                    </div>
-
-                                    <div
-                                        style="border-top: 1px solid #eee; padding-top: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                                        <?php
-                                        $top_rated_shown = false;
-                                        foreach ($applicants[$booking['id']] as $index => $app):
-                                            // Since array is already sorted by Best Rating/Jobs, the first one is Top Rated
-                                            $is_top_rated = ($index === 0 && $app['average_rating'] > 0);
-                                            ?>
-                                            <div
-                                                style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; position: relative; background: #fff;">
-
-                                                <?php if ($is_top_rated): ?>
-                                                    <span
-                                                        style="position: absolute; top: 0; right: 0; background: #FEF3C7; color: #D97706; font-size: 0.7rem; padding: 2px 8px; border-radius: 99px; font-weight: 600;">
-                                                        Top Rated
-                                                    </span>
-                                                <?php endif; ?>
-
-                                                <div style="display: flex; gap: 1rem; align-items: center;">
-                                                    <div
-                                                        style="width: 48px; height: 48px; background: #f3f4f6; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 2px solid <?php echo $is_top_rated ? '#FCD34D' : 'transparent'; ?>;">
-                                                        <?php if (!empty($app['profile_photo'])): ?>
-                                                            <img src="<?php echo htmlspecialchars($app['profile_photo']); ?>"
-                                                                style="width: 100%; height: 100%; object-fit: cover;">
-                                                        <?php else: ?>
-                                                            <span class="material-icons"
-                                                                style="font-size: 24px; color: #9ca3af;">person</span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <div style="flex: 1; padding-right: 60px;"> <!-- Padding for badge -->
-                                                        <div style="font-weight: 600; font-size: 0.95rem; color: #111;">
-                                                            <?php echo htmlspecialchars($app['name']); ?>
-                                                        </div>
-                                                        <div
-                                                            style="font-size: 0.85rem; color: #666; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
-                                                            <span
-                                                                style="display: flex; align-items: center; color: #F59E0B; font-weight: bold;">
-                                                                <span class="material-icons"
-                                                                    style="font-size: 14px; margin-right: 2px;">star</span>
-                                                                <?php echo $app['average_rating'] > 0 ? $app['average_rating'] : 'New'; ?>
-                                                            </span>
-                                                            <span
-                                                                style="width: 4px; height: 4px; background: #ddd; border-radius: 50%;"></span>
-                                                            <span><?php echo $app['completed_jobs_count']; ?> Jobs</span>
-                                                            <span
-                                                                style="width: 4px; height: 4px; background: #ddd; border-radius: 50%;"></span>
-                                                            <span>Est:
-                                                                <?php echo htmlspecialchars($app['arrival_estimate'] ?: 'N/A'); ?></span>
-                                                            <?php if (!empty($app['hourly_rate'])): ?>
-                                                                <span
-                                                                    style="width: 4px; height: 4px; background: #ddd; border-radius: 50%;"></span>
-                                                                <span
-                                                                    style="color: #10B981; font-weight: 600;">₹<?php echo $app['hourly_rate']; ?>/hr</span>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                        <a href="#"
-                                                            onclick='viewHelperProfile(<?php echo json_encode($app, JSON_HEX_APOS | JSON_HEX_QUOT); ?>); return false;'
-                                                            style="font-size: 0.8rem; color: var(--primary-color); text-decoration: none; font-weight: 500; display: inline-block; margin-top: 4px;">View
-                                                            Profile</a>
-                                                    </div>
-                                                </div>
-
-                                                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                                                    <form action="api/booking_action.php" method="POST">
-                                                        <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                                        <input type="hidden" name="helper_id" value="<?php echo $app['helper_id']; ?>">
-
-                                                        <input type="text" name="message" class="form-control"
-                                                            placeholder="Optional message to helper..."
-                                                            style="margin-bottom: 0.5rem; font-size: 0.9rem; padding: 0.5rem;">
-
-                                                        <div style="display: flex; gap: 0.5rem;">
-                                                            <button type="submit" name="action" value="confirm_helper"
-                                                                class="btn btn-primary"
-                                                                style="flex: 1; padding: 0.5rem; font-size: 0.85rem; background-color: #0056D2;">Accept</button>
-                                                            <button type="submit" name="action" value="reject_applicant"
-                                                                class="btn btn-outline"
-                                                                style="flex: 1; padding: 0.5rem; font-size: 0.85rem; color: #DC2626; border-color: #DC2626;"
-                                                                onclick="return confirm('Decline this helper?')">Decline</button>
-                                                        </div>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
 
                 <!-- Stats -->
                 <div class="grid mb-4"
@@ -764,12 +629,13 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 <div class="bc-header">
                                     <div>
                                         <h4 class="bc-title">
-                                            <span class="material-icons" style="font-size: 18px; color: var(--primary-color);">build_circle</span>
+                                            <span class="material-icons"
+                                                style="font-size: 18px; color: var(--primary-color);">build_circle</span>
                                             <?php echo htmlspecialchars($booking['service_name']); ?>
                                         </h4>
                                         <div class="bc-meta">
                                             <span class="material-icons" style="font-size: 14px;">event</span>
-                                            <?php echo date('d M Y', strtotime($booking['date'])); ?> 
+                                            <?php echo date('d M Y', strtotime($booking['date'])); ?>
                                             <?php echo $booking['time'] ? 'at ' . date('h:i A', strtotime($booking['time'])) : ''; ?>
                                         </div>
                                     </div>
@@ -777,7 +643,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                         <?php echo ucfirst($booking['status']); ?>
                                     </span>
                                 </div>
-                                
+
                                 <div class="bc-body">
                                     <div class="bc-helper-info">
                                         <?php if ($booking['helper_name']): ?>
@@ -785,7 +651,9 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                                 <span class="material-icons">person</span>
                                             </div>
                                             <div>
-                                                <div style="font-weight: 600; font-size: 0.95rem;"><?php echo htmlspecialchars($booking['helper_name']); ?></div>
+                                                <div style="font-weight: 600; font-size: 0.95rem;">
+                                                    <?php echo htmlspecialchars($booking['helper_name']); ?>
+                                                </div>
                                                 <div style="font-size: 0.8rem; color: var(--text-light);">Assigned Helper</div>
                                             </div>
                                         <?php else: ?>
@@ -793,19 +661,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                                 <span class="material-icons">hourglass_empty</span>
                                             </div>
                                             <div>
-                                                <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-light);">Finding a pro...</div>
-                                                <?php if ($booking['status'] === 'accepted' && isset($applicants[$booking['id']])): ?>
-                                                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600;">
-                                                        <?php echo count($applicants[$booking['id']]); ?> helpers applied!
+                                                <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-light);">Finding
+                                                    a pro...</div>
+                                                <?php if ($booking['status'] === 'pending'): ?>
+                                                    <div style="font-size: 0.8rem; color: var(--text-light);">We will notify you soon.
                                                     </div>
-                                                <?php else: ?>
-                                                    <div style="font-size: 0.8rem; color: var(--text-light);">We will notify you soon.</div>
                                                 <?php endif; ?>
                                             </div>
                                         <?php endif; ?>
                                     </div>
-                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-light); max-width: 200px;">
-                                        <span class="material-icons" style="font-size: 14px; vertical-align: middle;">location_on</span>
+                                    <div
+                                        style="text-align: right; font-size: 0.85rem; color: var(--text-light); max-width: 200px;">
+                                        <span class="material-icons"
+                                            style="font-size: 14px; vertical-align: middle;">location_on</span>
                                         <?php echo htmlspecialchars($booking['location'] ?? 'No location provided'); ?>
                                     </div>
                                 </div>
@@ -814,26 +682,27 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                     <div>
                                         <?php if ($booking['status'] == 'confirmed'): ?>
                                             <span style="font-size: 0.85rem; color: var(--primary-color); font-weight: 600;">
-                                                <span class="material-icons" style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to message? View details.
+                                                <span class="material-icons"
+                                                    style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to
+                                                message? View details.
                                             </span>
                                         <?php endif; ?>
                                     </div>
                                     <div class="bc-actions">
-                                        <?php if ($booking['status'] == 'accepted' && isset($applicants[$booking['id']])): ?>
-                                            <button class="btn btn-primary" onclick='showApplicants(<?php echo json_encode($applicants[$booking['id']]); ?>, <?php echo $booking['id']; ?>)'>
-                                                Select Helper
-                                            </button>
-                                        <?php elseif ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
-                                            <form action="api/booking_action.php" method="POST" style="margin: 0;" onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+                                        <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
+                                            <form action="api/booking_action.php" method="POST" style="margin: 0;"
+                                                onsubmit="return confirm('Are you sure you want to cancel this booking?');">
                                                 <input type="hidden" name="action" value="cancel">
                                                 <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                                <button type="submit" class="btn btn-outline" style="color: #DC2626; border-color: #DC2626;">Cancel Booking</button>
+                                                <button type="submit" class="btn btn-outline"
+                                                    style="color: #DC2626; border-color: #DC2626;">Cancel Booking</button>
                                             </form>
                                         <?php elseif ($booking['status'] == 'completed'): ?>
                                             <?php if (in_array($booking['id'], $reviewed_bookings)): ?>
                                                 <button class="btn btn-outline" disabled style="background: #f3f4f6;">Reviewed</button>
                                             <?php else: ?>
-                                                <button class="btn btn-primary" onclick="openReviewModal(<?php echo $booking['id']; ?>)">Leave a Review</button>
+                                                <button class="btn btn-primary"
+                                                    onclick="openReviewModal(<?php echo $booking['id']; ?>)">Leave a Review</button>
                                             <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
@@ -841,25 +710,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <div style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed var(--border-color);">
-                            <span class="material-icons" style="font-size: 48px; color: #d1d5db; margin-bottom: 1rem;">event_busy</span>
+                        <div
+                            style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed var(--border-color);">
+                            <span class="material-icons"
+                                style="font-size: 48px; color: #d1d5db; margin-bottom: 1rem;">event_busy</span>
                             <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">No bookings yet</h4>
-                            <p style="color: var(--text-light); font-size: 0.9rem;">You haven't requested any services yet. Head over to the Book tab!</p>
+                            <p style="color: var(--text-light); font-size: 0.9rem;">You haven't requested any services yet.
+                                Head over to the Book tab!</p>
                         </div>
                     <?php endif; ?>
                 </div>
             </div>
 
-            <!-- Applicant Selection Modal -->
-            <div id="applicantsModal" class="modal">
-                <div class="modal-content">
-                    <span class="close" onclick="closeApplicantsModal()">&times;</span>
-                    <h2>Select a Helper</h2>
-                    <div id="applicantsList" style="margin-top: 1rem;">
-                        <!-- JS populated -->
-                    </div>
-                </div>
-            </div>
+
 
             <!-- Review Modal -->
             <div id="reviewModal" class="modal">

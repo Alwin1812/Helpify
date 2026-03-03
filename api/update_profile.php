@@ -53,6 +53,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $new_password = $_POST['new_password'] ?? null;
+    $confirm_password = $_POST['confirm_password'] ?? null;
+
+    $password_sql = "";
+    $hashed_password = null;
+    if (!empty($new_password)) {
+        if ($new_password !== $confirm_password) {
+            $_SESSION['error'] = 'New passwords do not match.';
+            header("Location: $redirect_url");
+            exit;
+        }
+        if (strlen($new_password) < 6) {
+            $_SESSION['error'] = 'Password must be at least 6 characters.';
+            header("Location: $redirect_url");
+            exit;
+        }
+        $stmt = $pdo->prepare("SELECT password_changed FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        if ($stmt->fetchColumn() == 0) {
+            $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+            $password_sql = ", password = ?, password_changed = 1";
+        }
+    }
+
     try {
         // Base Query
         $sql = "UPDATE users SET name = ?, gender = ?, bio = ?, phone_number = ?, address = ?";
@@ -74,6 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($profile_photo_path) {
             $sql .= ", profile_photo = ?";
             $params[] = $profile_photo_path;
+        }
+
+        if (!empty($password_sql) && $hashed_password) {
+            $sql .= $password_sql;
+            $params[] = $hashed_password;
         }
 
         $sql .= " WHERE id = ?";

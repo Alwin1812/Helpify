@@ -17,6 +17,10 @@ $total_users_count = $pdo->query("SELECT COUNT(*) FROM users WHERE role='user'")
 $total_helpers_count = $pdo->query("SELECT COUNT(*) FROM users WHERE role='helper'")->fetchColumn();
 $total_bookings_count = $pdo->query("SELECT COUNT(*) FROM bookings")->fetchColumn();
 
+// Fetch Services for Job Roles
+$stmt = $pdo->query("SELECT * FROM services ORDER BY name ASC");
+$all_services = $stmt->fetchAll();
+
 // Fetch Users
 $users = [];
 if ($role_filter === 'all' || $role_filter === 'user') {
@@ -519,7 +523,16 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                 <div class="content-card">
                     <div class="card-header">
                         <h3 style="font-size: 1.1rem; margin: 0;">Service Providers (Helpers)</h3>
-                        <span class="status-badge badge-purple"><?php echo count($helpers); ?> Helpers</span>
+                        <div>
+                            <span class="status-badge badge-purple"
+                                style="margin-right: 1rem;"><?php echo count($helpers); ?> Helpers</span>
+                            <button type="button" class="btn btn-primary" onclick="openAddHelperModal()"
+                                style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                                <span class="material-icons"
+                                    style="font-size: 16px; vertical-align: middle; margin-right: 4px;">add</span> Add
+                                Helper
+                            </button>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table class="data-table">
@@ -594,6 +607,84 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
 
         </div>
 
+        <!-- Add Helper Modal -->
+        <div id="addHelperModal"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;">
+            <div
+                style="background: white; width: 90%; max-width: 600px; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; max-height: 90vh; overflow-y: auto;">
+                <span onclick="closeAddHelperModal()"
+                    style="position: absolute; top: 1rem; right: 1rem; cursor: pointer; font-size: 24px; color: #666;">&times;</span>
+
+                <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">Create New Helper</h2>
+
+                <form action="api/admin_action.php" method="POST">
+                    <input type="hidden" name="action" value="add_helper">
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Full Name</label>
+                            <input type="text" name="name" required
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Email</label>
+                            <input type="email" name="email" required
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Password</label>
+                            <input type="password" name="password" required minlength="6"
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Phone Number</label>
+                            <input type="text" name="phone_number"
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;"
+                                pattern="[0-9]{10}" maxlength="10">
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Gender</label>
+                            <select name="gender"
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <input type="hidden" name="hourly_rate" id="add_hourly_rate">
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Job Role</label>
+                            <select name="job_role" id="add_job_role" onchange="updateRate('add')"
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;"
+                                required>
+                                <option value="">Select Role</option>
+                                <?php foreach ($all_services as $svc): ?>
+                                    <option value="<?php echo htmlspecialchars($svc['name']); ?>"
+                                        data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
+                                        <?php echo htmlspecialchars($svc['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="text-align: right; margin-top: 1rem;">
+                        <button type="button" onclick="closeAddHelperModal()"
+                            style="background: #f3f4f6; color: #333; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; margin-right: 0.5rem; cursor: pointer;">Cancel</button>
+                        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">Create
+                            Helper</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Edit Helper Modal -->
         <div id="editHelperModal"
             style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;">
@@ -633,24 +724,19 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                             </select>
                         </div>
 
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Hourly Rate
-                                (₹)</label>
-                            <input type="number" name="hourly_rate" id="edit_rate"
-                                style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
-                        </div>
+                        <input type="hidden" name="hourly_rate" id="edit_rate">
 
                         <div style="margin-bottom: 1rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Job Role</label>
-                            <select name="job_role" id="edit_role"
+                            <select name="job_role" id="edit_role" onchange="updateRate('edit')"
                                 style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
                                 <option value="">Select Role</option>
-                                <option value="Cleaning">Cleaning</option>
-                                <option value="Cooking">Cooking</option>
-                                <option value="Babysitting">Babysitting</option>
-                                <option value="Elderly Care">Elderly Care</option>
-                                <option value="Plumbing">Plumbing</option>
-                                <option value="Electrical">Electrical</option>
+                                <?php foreach ($all_services as $svc): ?>
+                                    <option value="<?php echo htmlspecialchars($svc['name']); ?>"
+                                        data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
+                                        <?php echo htmlspecialchars($svc['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
@@ -690,6 +776,14 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
         </div>
 
         <script>
+            function openAddHelperModal() {
+                document.getElementById('addHelperModal').style.display = 'flex';
+            }
+
+            function closeAddHelperModal() {
+                document.getElementById('addHelperModal').style.display = 'none';
+            }
+
             function openEditModal(helper) {
                 document.getElementById('edit_user_id').value = helper.id || '';
                 document.getElementById('edit_name').value = helper.name || '';
@@ -703,11 +797,14 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                 document.getElementById('editHelperModal').style.display = 'flex';
             }
 
-            // Close modal when clicking outside
             window.onclick = function (event) {
-                const modal = document.getElementById('editHelperModal');
-                if (event.target == modal) {
-                    modal.style.display = "none";
+                const editModal = document.getElementById('editHelperModal');
+                const addModal = document.getElementById('addHelperModal');
+                if (event.target == editModal) {
+                    editModal.style.display = "none";
+                }
+                if (event.target == addModal) {
+                    addModal.style.display = "none";
                 }
             }
 
@@ -747,6 +844,25 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                             document.getElementById('edit_address').value = data.display_name;
                         }
                     });
+            }
+
+            function updateRate(mode) {
+                let selectElem, rateInput;
+                if (mode === 'add') {
+                    selectElem = document.getElementById('add_job_role');
+                    rateInput = document.getElementById('add_hourly_rate');
+                } else {
+                    selectElem = document.getElementById('edit_role');
+                    rateInput = document.getElementById('edit_rate');
+                }
+
+                if (selectElem && rateInput) {
+                    const selectedOption = selectElem.options[selectElem.selectedIndex];
+                    const basePrice = selectedOption.getAttribute('data-price');
+                    if (basePrice) {
+                        rateInput.value = basePrice;
+                    }
+                }
             }
         </script>
     </main>

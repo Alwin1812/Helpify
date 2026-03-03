@@ -1,0 +1,4 @@
+Failed to delete user 23: SQLSTATE[23000]: Integrity constraint violation: 1451 Cannot delete or update a parent row: a foreign key constraint fails (`helpify_db`.`helper_services`, CONSTRAINT `helper_services_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`))
+
+Failed to delete user 30: SQLSTATE[23000]: Integrity constraint violation: 1451 Cannot delete or update a parent row: a foreign key constraint fails (`helpify_db`.`helper_services`, CONSTRAINT `helper_services_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`))
+

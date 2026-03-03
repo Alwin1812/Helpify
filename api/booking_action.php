@@ -46,16 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
             $booked_count = 0;
+            $recent_booking_ids = [];
 
             foreach ($service_ids as $service_id) {
-                $stmt = $pdo->prepare("
-                    INSERT INTO bookings 
-                    (user_id, service_id, date, time, location, budget, special_instructions, status) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
-                ");
-                $stmt->execute([$user_id, $service_id, $date, $time, $location, $budget, $instructions]);
-
-                // Broadcast to Helpers
                 // 1. Get Service Name
                 $stmt = $pdo->prepare("SELECT name FROM services WHERE id = ?");
                 $stmt->execute([$service_id]);
@@ -64,13 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 2. Find Matching Helpers (Simple keyword matching for MVP)
                 $keywords = [];
                 if (stripos($service_name, 'Clean') !== false)
-                    $keywords = ['Maid', 'Cleaner', 'Housekeeper'];
+                    $keywords = ['Maid', 'Cleaner', 'Housekeeper', 'Cleaning'];
                 elseif (stripos($service_name, 'Cook') !== false)
-                    $keywords = ['Cook', 'Chef'];
+                    $keywords = ['Cook', 'Chef', 'Cooking'];
                 elseif (stripos($service_name, 'Baby') !== false)
-                    $keywords = ['Nanny', 'Babysitter'];
+                    $keywords = ['Nanny', 'Babysitter', 'Babysitting'];
                 elseif (stripos($service_name, 'Elder') !== false)
-                    $keywords = ['Caregiver', 'Nurse'];
+                    $keywords = ['Caregiver', 'Nurse', 'Elderly Care'];
 
                 $sql = "SELECT id FROM users WHERE role = 'helper'";
                 $params = [];
@@ -88,21 +81,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute($params);
                 $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-                // Fallback: If no strict match, notify ALL helpers so the request isn't lost
+                // Fallback: If no strict match, find ALL helpers
                 if (empty($helpers)) {
                     $stmt = $pdo->query("SELECT id FROM users WHERE role = 'helper'");
                     $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 }
 
-                foreach ($helpers as $hid) {
-                    createNotification($pdo, $hid, "New Job Opportunity: $service_name on $date. Check your dashboard!", 'info');
+                $assigned_helper_id = null;
+                $status = 'pending';
+                if (!empty($helpers)) {
+                    $assigned_helper_id = $helpers[array_rand($helpers)];
+                    $status = 'confirmed';
+                }
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO bookings 
+                    (user_id, service_id, helper_id, date, time, location, budget, special_instructions, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $time, $location, $budget, $instructions, $status]);
+                $booking_id = $pdo->lastInsertId();
+                $recent_booking_ids[] = $booking_id;
+
+                if ($assigned_helper_id) {
+                    createNotification($pdo, $assigned_helper_id, "New Job Assigned: $service_name on $date. Check your My Jobs tab!", 'info');
                 }
 
                 $booked_count++;
             }
 
             $pdo->commit();
-            $_SESSION['success'] = "$booked_count Booking request(s) sent successfully! Waiting for helpers to accept.";
+            $_SESSION['recent_booking_ids'] = $recent_booking_ids;
+
+            // Adjust success message
+            if ($booked_count > 0 && isset($status) && $status === 'confirmed') {
+                $_SESSION['success'] = "$booked_count Booking(s) confirmed! A helper has been automatically assigned.";
+            } else {
+                $_SESSION['success'] = "$booked_count Booking request(s) sent successfully! Waiting for helpers.";
+            }
+
             header('Location: ../booking_success.php');
             exit;
         } catch (PDOException $e) {

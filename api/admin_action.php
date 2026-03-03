@@ -23,16 +23,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // Delete bookings where user is involved (as user or helper)
-            // As a user
-            $stmt = $pdo->prepare("DELETE FROM bookings WHERE user_id = ?");
+            // 1. Find all bookings associated with the user
+            $stmt = $pdo->prepare("SELECT id FROM bookings WHERE user_id = ? OR helper_id = ?");
+            $stmt->execute([$user_id, $user_id]);
+            $booking_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+            // 2. Delete dependent records for these bookings
+            if (!empty($booking_ids)) {
+                $placeholders = implode(',', array_fill(0, count($booking_ids), '?'));
+
+                // Delete reviews linked to these bookings
+                $stmt = $pdo->prepare("DELETE FROM reviews WHERE booking_id IN ($placeholders)");
+                $stmt->execute($booking_ids);
+
+                // Delete booking requests linked to these bookings
+                $stmt = $pdo->prepare("DELETE FROM booking_requests WHERE booking_id IN ($placeholders)");
+                $stmt->execute($booking_ids);
+
+                // Finally delete the bookings
+                $stmt = $pdo->prepare("DELETE FROM bookings WHERE id IN ($placeholders)");
+                $stmt->execute($booking_ids);
+            }
+
+            // 3. Delete other related lists where the user is involved
+            // Reviews (as reviewer or as helper being reviewed)
+            $stmt = $pdo->prepare("DELETE FROM reviews WHERE reviewer_id = ? OR reviewee_id = ?");
+            $stmt->execute([$user_id, $user_id]);
+
+            // Booking Requests (as helper)
+            $stmt = $pdo->prepare("DELETE FROM booking_requests WHERE helper_id = ?");
             $stmt->execute([$user_id]);
 
-            // As a helper
-            $stmt = $pdo->prepare("DELETE FROM bookings WHERE helper_id = ?");
+            $stmt = $pdo->prepare("DELETE FROM notifications WHERE user_id = ?");
             $stmt->execute([$user_id]);
 
-            // Delete the user
+            // Helper Services
+            $stmt = $pdo->prepare("DELETE FROM helper_services WHERE user_id = ?");
+            $stmt->execute([$user_id]);
+
+            // 4. Delete the user
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
             $stmt->execute([$user_id]);
 
@@ -62,6 +91,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['success'] = 'Helper details updated successfully.';
         } catch (PDOException $e) {
             $_SESSION['error'] = 'Failed to update helper: ' . $e->getMessage();
+        }
+
+        header('Location: ../admin_dashboard.php?role=helper');
+        exit;
+    } elseif ($action === 'add_helper') {
+        $name = $_POST['name'];
+        $email = $_POST['email'];
+        $password = $_POST['password'];
+        $phone_number = $_POST['phone_number'];
+        $gender = $_POST['gender'];
+        $job_role = $_POST['job_role'];
+        $hourly_rate = $_POST['hourly_rate'] ?? 0;
+        $role = 'helper';
+
+        // Check if email already exists
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetchColumn() > 0) {
+            $_SESSION['error'] = 'A user or helper with this email already exists.';
+            header('Location: ../admin_dashboard.php?role=helper');
+            exit;
+        }
+
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+        try {
+            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, job_role, gender, phone_number, hourly_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $email, $hashed_password, $role, $job_role, $gender, $phone_number, $hourly_rate]);
+            $_SESSION['success'] = 'New helper added successfully.';
+        } catch (PDOException $e) {
+            $_SESSION['error'] = 'Failed to add helper: ' . $e->getMessage();
         }
 
         header('Location: ../admin_dashboard.php?role=helper');

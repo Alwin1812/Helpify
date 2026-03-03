@@ -188,21 +188,21 @@ unset($_SESSION['success']);
                 <?php echo htmlspecialchars($success_message); ?>
             </p>
 
-            <div class="matching-loader">
-                <span class="material-icons" style="color: var(--primary-color);">person_search</span>
-                <span>Matching you with the best professionals</span>
-                <div style="display: flex; gap: 4px; margin-left: 5px;">
-                    <div class="dot dot1"></div>
-                    <div class="dot dot2"></div>
-                    <div class="dot dot3"></div>
-                </div>
+            <div
+                style="margin: 2rem 0; padding: 1rem; background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px;">
+                <span class="material-icons"
+                    style="color: #10B981; font-size: 32px; display: block; margin: 0 auto 0.5rem auto;">task_alt</span>
+                <span
+                    style="color: #065F46; font-weight: 700; font-size: 1.1rem; display: block; margin-bottom: 0.5rem;">A
+                    professional is ready!</span>
+                <p style="font-size: 0.9rem; color: #047857; margin: 0;">We've already assigned a helper to your job.
+                    Check your dashboard to view their profile and contact them.</p>
             </div>
 
-            <p style="font-size: 0.9rem;">You will receive a notification on your dashboard as soon as a helper accepts
-                your request.</p>
-
             <div class="actions">
-                <a href="dashboard.php" class="btn btn-primary">Go to Dashboard</a>
+                <a href="dashboard.php" class="btn btn-primary"
+                    style="background-color: #10B981; border-color: #10B981; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.39);">View
+                    Booking Details</a>
             </div>
         </div>
     </div>
