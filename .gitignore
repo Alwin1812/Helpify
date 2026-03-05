@@ -1,0 +1,16 @@
+# Project logs and temporary files
+*.log
+*.txt
+*.patch
+*.err
+tmp_*
+/assets/uploads/*
+!/assets/uploads/.gitkeep
+ PHPMailer-master/
+ git_log_clean.txt
+ push_out.txt
+ stat.txt
+ schema_output.json
+ .antigravity*
+ !.antigravityignore
+ includes/google_config.php

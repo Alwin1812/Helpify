@@ -310,6 +310,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             gap: 0.5rem;
         }
     </style>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 
 <body>
@@ -733,7 +734,8 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                                 </div>
                                             </div>
                                             <div style="text-align: right;">
-                                                <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Payment: <?php echo $booking['payment_method']; ?></div>
+                                                <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Payment:
+                                                    <?php echo $booking['payment_method']; ?></div>
                                                 <?php if ($booking['payment_status'] == 'paid'): ?>
                                                     <span class="payment-status-badge ps-paid">Paid</span>
                                                 <?php else: ?>
@@ -777,7 +779,8 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                     </div>
                                     <div class="bc-actions">
                                         <?php if ($booking['status'] == 'completed' && $booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending'): ?>
-                                            <button onclick="alert('Proceeding to Secure Payment Gateway...')" class="btn btn-primary" style="background: #10B981; border-color: #10B981;">Pay Now</button>
+                                            <button onclick="payOnline(<?php echo $booking['id']; ?>)" class="btn btn-primary"
+                                                style="background: #10B981; border-color: #10B981;">Pay Now</button>
                                         <?php endif; ?>
                                         <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
                                             <form action="api/booking_action.php" method="POST" style="margin: 0;"
@@ -1571,6 +1574,74 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 alert("Please correct the errors in the form before submitting.");
             }
         });
+
+        // Razorpay Payment Logic
+        function payOnline(bookingId) {
+            fetch('api/create_razorpay_order.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'booking_id=' + bookingId
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert("Error: " + data.error);
+                        return;
+                    }
+
+                    var options = {
+                        "key": data.key,
+                        "amount": data.amount,
+                        "currency": "INR",
+                        "name": "Helpify Services",
+                        "description": "Payment for Booking #" + bookingId,
+                        "order_id": data.order_id,
+                        "handler": function (response) {
+                            // Validate hash/signature on backend
+                            fetch('api/verify_payment.php', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    razorpay_payment_id: response.razorpay_payment_id,
+                                    razorpay_order_id: response.razorpay_order_id,
+                                    razorpay_signature: response.razorpay_signature,
+                                    booking_id: bookingId
+                                })
+                            })
+                                .then(r => r.json())
+                                .then(resData => {
+                                    if (resData.success) {
+                                        alert("Payment successful! Thank you.");
+                                        location.reload();
+                                    } else {
+                                        alert("Payment verification failed! " + resData.error);
+                                    }
+                                });
+                        },
+                        "prefill": {
+                            "name": "<?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?>",
+                            "email": "<?php echo htmlspecialchars($user_details['email'] ?? ''); ?>",
+                            "contact": "<?php echo htmlspecialchars($user_details['phone_number'] ?? ''); ?>"
+                        },
+                        "theme": {
+                            "color": "#3B82F6"
+                        }
+                    };
+                    var rzp1 = new Razorpay(options);
+                    rzp1.on('payment.failed', function (response) {
+                        alert("Payment Failed: " + response.error.description);
+                    });
+                    rzp1.open();
+                })
+                .catch(err => {
+                    alert("Network error. Please try again later.");
+                    console.error(err);
+                });
+        }
     </script>
 
 </body>

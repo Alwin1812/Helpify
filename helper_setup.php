@@ -36,6 +36,24 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
                 <p style="margin-bottom: 2rem; color: var(--text-light);">Please provide your contact details to get
                     started.</p>
 
+                <?php if (isset($_GET['error'])): ?>
+                    <div
+                        style="background: var(--danger); color: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                        <?php
+                        $error = $_GET['error'];
+                        if ($error === 'missing_fields')
+                            echo "Please fill in all required fields.";
+                        elseif ($error === 'invalid_phone')
+                            echo "Please enter a valid 10-digit phone number.";
+                        elseif ($error === 'db_error')
+                            echo "An error occurred while saving your profile. Please try again.";
+                        else
+                            echo "Something went wrong. Please try again.";
+                        ?>
+                    </div>
+                <?php endif; ?>
+
+
                 <form action="api/save_helper_details.php" method="POST" enctype="multipart/form-data">
                     <div class="input-group">
                         <label>Profile Picture</label>
@@ -89,7 +107,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
         const submitBtn = document.getElementById('submitBtn');
 
         if (phoneInput) {
-            phoneInput.addEventListener('input', function() {
+            phoneInput.addEventListener('input', function () {
                 // Keep only numeric characters
                 this.value = this.value.replace(/\D/g, '');
 
@@ -100,7 +118,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
                 } else {
                     const isValidPrefix = /^[6-9]/.test(this.value);
                     const isCorrectLength = this.value.length === 10;
-                    
+
                     if (isValidPrefix && isCorrectLength) {
                         this.style.borderColor = '#10B981'; // Green
                         phoneError.style.display = 'none';

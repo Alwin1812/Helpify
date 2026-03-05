@@ -57,7 +57,8 @@ session_start();
         <div class="auth-box">
             <div class="auth-left">
                 <h2 style="margin-bottom: 0.5rem; font-size: 2rem; color: var(--primary-dark);">Create Account</h2>
-                <p style="margin-bottom: 2rem; color: var(--text-light);">Join Helpify to easily book reliable services</p>
+                <p style="margin-bottom: 2rem; color: var(--text-light);">Join Helpify to easily book reliable services
+                </p>
 
                 <?php if (isset($_SESSION['error'])): ?>
                     <div
@@ -103,78 +104,77 @@ session_start();
                     </div>
 
                     <?php
-                    require_once 'includes/google_config.php';
-                    // Default link for 'user'
-                    if (defined('GOOGLE_CLIENT_ID') && GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID') {
+                    $is_google_configured = (defined('GOOGLE_CLIENT_ID') && GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID');
+                    if ($is_google_configured) {
                         $base_google_url = 'https://accounts.google.com/o/oauth2/v2/auth?scope=' . urlencode('https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email') . '&redirect_uri=' . urlencode(GOOGLE_REDIRECT_URL) . '&response_type=code&client_id=' . GOOGLE_CLIENT_ID . '&access_type=online&prompt=select_account';
-                        $google_signup_url = $base_google_url . '&state=user'; // Default state
-                        ?>
-                        <a href="<?php echo $google_signup_url; ?>" id="google-signup-btn" class="btn btn-block"
-                            style="background-color: #fff; color: #757575; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px;">
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
-                                style="width: 18px; height: 18px;">
-                            Sign up with Google
-                        </a>
+                        $google_signup_url = $base_google_url . '&state=user';
+                    } else {
+                        $google_signup_url = '#';
+                    }
+                    ?>
+                    <a href="<?php echo $google_signup_url; ?>" id="google-signup-btn" <?php if (!$is_google_configured)
+                           echo 'onclick="alert(\'Please configure Google Client ID and Secret in includes/google_config.php first!\'); return false;"'; ?> class="btn btn-block"
+                        style="background-color: #fff; color: #374151; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 1rem; border-radius: 8px; font-weight: 500; transition: all 0.2s ease;">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
+                            style="width: 20px; height: 20px;">
+                        Sign up with Google
+                    </a>
+
+                    <?php if ($is_google_configured): ?>
                         <script>
-                            // Store base URL in JS variable
                             const baseGoogleUrl = "<?php echo $base_google_url; ?>";
+                        </script>
+                    <?php endif; ?>
 
-                            function validateRegField(input) {
-                                const errorEl = input.nextElementSibling;
-                                let isValid = true;
-                                let message = "";
+                    <script>
+                        function validateRegField(input) {
+                            const errorEl = input.nextElementSibling;
+                            let isValid = true;
+                            let message = "";
 
-                                if (input.required && !input.value.trim()) {
+                            if (input.required && !input.value.trim()) {
+                                isValid = false;
+                                message = "This field is required.";
+                            } else if (input.type === 'email') {
+                                const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                                if (!re.test(input.value)) {
                                     isValid = false;
-                                    message = "This field is required.";
-                                } else if (input.type === 'email') {
-                                    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                                    if (!re.test(input.value)) {
-                                        isValid = false;
-                                        message = "Please enter a valid email address.";
-                                    }
-                                } else if (input.type === 'password' && input.value.length < 6) {
-                                    isValid = false;
-                                    message = "Password must be at least 6 characters.";
+                                    message = "Please enter a valid email address.";
                                 }
-
-                                if (!isValid) {
-                                    input.classList.add('invalid');
-                                    input.classList.remove('valid');
-                                    if (errorEl) {
-                                        errorEl.textContent = message;
-                                        errorEl.style.display = 'block';
-                                    }
-                                } else {
-                                    input.classList.remove('invalid');
-                                    input.classList.add('valid');
-                                    if (errorEl) errorEl.style.display = 'none';
-                                }
-                                return isValid;
+                            } else if (input.type === 'password' && input.value.length < 6) {
+                                isValid = false;
+                                message = "Password must be at least 6 characters.";
                             }
 
-                            document.querySelector('form').addEventListener('submit', function (e) {
-                                const inputs = this.querySelectorAll('input[required]');
-                                let allValid = true;
-                                inputs.forEach(input => {
-                                    if (!validateRegField(input)) allValid = false;
-                                });
-                                if (!allValid) {
-                                    e.preventDefault();
-                                    alert("Please correct the errors in the form.");
+                            if (!isValid) {
+                                input.classList.add('invalid');
+                                input.classList.remove('valid');
+                                if (errorEl) {
+                                    errorEl.textContent = message;
+                                    errorEl.style.display = 'block';
                                 }
+                            } else {
+                                input.classList.remove('invalid');
+                                input.classList.add('valid');
+                                if (errorEl) errorEl.style.display = 'none';
+                            }
+                            return isValid;
+                        }
+
+                        document.querySelector('form').addEventListener('submit', function (e) {
+                            const inputs = this.querySelectorAll('input[required]');
+                            let allValid = true;
+                            inputs.forEach(input => {
+                                if (!validateRegField(input)) allValid = false;
                             });
-                        </script>
-                    <?php } else { ?>
-                        <a href="#"
-                            onclick="alert('Please configure Google Client ID and Secret in includes/google_config.php first!'); return false;"
-                            class="btn btn-block"
-                            style="background-color: #f5f5f5; color: #999; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; cursor: not-allowed;">
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
-                                style="width: 18px; height: 18px; opacity: 0.5;">
-                            Sign up with Google (Not Configured)
-                        </a>
-                    <?php } ?>
+                            if (!allValid) {
+                                e.preventDefault();
+                                alert("Please correct the errors in the form.");
+                            }
+                        });
+                    </script>
+
+
                 </form>
 
                 <p style="margin-top: 1.5rem; text-align: center; color: var(--text-light);">
