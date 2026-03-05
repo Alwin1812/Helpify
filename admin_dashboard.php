@@ -641,9 +641,12 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
 
                         <div style="margin-bottom: 1rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Phone Number</label>
-                            <input type="text" name="phone_number"
+                            <input type="text" id="add_phone" name="phone_number"
                                 style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;"
                                 pattern="[0-9]{10}" maxlength="10">
+                            <small id="add_phone_error"
+                                style="color: #EF4444; font-size: 0.75rem; display: none; margin-top: 0.25rem;">Enter a
+                                10-digit number</small>
                         </div>
 
                         <div style="margin-bottom: 1rem;">
@@ -711,6 +714,9 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                             <input type="text" name="phone_number" id="edit_phone"
                                 style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;"
                                 pattern="[0-9]{10}" maxlength="10">
+                            <small id="edit_phone_error"
+                                style="color: #EF4444; font-size: 0.75rem; display: none; margin-top: 0.25rem;">Enter a
+                                10-digit number</small>
                         </div>
 
                         <div style="margin-bottom: 1rem;">
@@ -864,6 +870,53 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                     }
                 }
             }
+            function setupPhoneValidation(inputId, errorId) {
+                const input = document.getElementById(inputId);
+                const error = document.getElementById(errorId);
+                if (input && error) {
+                    input.addEventListener('input', function () {
+                        this.value = this.value.replace(/\D/g, '');
+                        if (this.value === '') {
+                            this.style.borderColor = '#ddd';
+                            error.style.display = 'none';
+                        } else {
+                            const isValidPrefix = /^[6-9]/.test(this.value);
+                            const isCorrectLength = this.value.length === 10;
+
+                            if (isValidPrefix && isCorrectLength) {
+                                this.style.borderColor = '#10B981';
+                                error.style.display = 'none';
+                            } else {
+                                this.style.borderColor = '#EF4444';
+                                error.style.display = 'block';
+                                if (!isValidPrefix) {
+                                    error.textContent = "Start with 6, 7, 8, or 9";
+                                } else {
+                                    error.textContent = "Enter a 10-digit number";
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            setupPhoneValidation('add_phone', 'add_phone_error');
+            setupPhoneValidation('edit_phone', 'edit_phone_error');
+
+            // Intercept form submissions
+            document.querySelectorAll('form').forEach(form => {
+                form.addEventListener('submit', function (e) {
+                    const phoneInput = this.querySelector('input[name="phone_number"]');
+                    if (phoneInput && phoneInput.value.length > 0) {
+                        const isValidPrefix = /^[6-9]/.test(phoneInput.value);
+                        const isCorrectLength = phoneInput.value.length === 10;
+                        if (!isValidPrefix || !isCorrectLength) {
+                            e.preventDefault();
+                            alert("Please enter a valid 10-digit phone number starting with 6-9.");
+                        }
+                    }
+                });
+            });
         </script>
     </main>
 </body>

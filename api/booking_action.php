@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $location = $_POST['location'] ?? null;
         $budget = $_POST['budget'] ?? null;
         $instructions = $_POST['instructions'] ?? null;
+        $payment_method = $_POST['payment_method'] ?? 'Cash';
 
         if (empty($service_ids) || empty($date)) {
             $_SESSION['error'] = 'Please select a service and date.';
@@ -54,16 +55,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$service_id]);
                 $service_name = $stmt->fetchColumn();
 
-                // 2. Find Matching Helpers (Simple keyword matching for MVP)
+                // 2. Find Matching Helpers (Keyword matching for assignment)
                 $keywords = [];
-                if (stripos($service_name, 'Clean') !== false)
+                if (stripos($service_name, 'Clean') !== false || stripos($service_name, 'Maid') !== false)
                     $keywords = ['Maid', 'Cleaner', 'Housekeeper', 'Cleaning'];
-                elseif (stripos($service_name, 'Cook') !== false)
+                elseif (stripos($service_name, 'Cook') !== false || stripos($service_name, 'Cooking') !== false)
                     $keywords = ['Cook', 'Chef', 'Cooking'];
-                elseif (stripos($service_name, 'Baby') !== false)
+                elseif (stripos($service_name, 'Baby') !== false || stripos($service_name, 'Sitt') !== false)
                     $keywords = ['Nanny', 'Babysitter', 'Babysitting'];
-                elseif (stripos($service_name, 'Elder') !== false)
-                    $keywords = ['Caregiver', 'Nurse', 'Elderly Care'];
+                elseif (stripos($service_name, 'Elder') !== false || stripos($service_name, 'Patient') !== false)
+                    $keywords = ['Caregiver', 'Nurse', 'Elderly Care', 'Patient Care'];
+                elseif (stripos($service_name, 'Plumb') !== false)
+                    $keywords = ['Plumber', 'Plumbing'];
+                elseif (stripos($service_name, 'Electr') !== false)
+                    $keywords = ['Electrician', 'Electrical'];
+                elseif (stripos($service_name, 'RO ') !== false || stripos($service_name, 'Purifier') !== false)
+                    $keywords = ['RO', 'Purifier', 'Water Service'];
+                elseif (stripos($service_name, 'Paint') !== false || stripos($service_name, 'Wall') !== false)
+                    $keywords = ['Painter', 'Painting', 'Wallpaper', 'Wall'];
 
                 $sql = "SELECT id FROM users WHERE role = 'helper'";
                 $params = [];
@@ -75,17 +84,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $params[] = "%$k%";
                     }
                     $sql .= " AND (" . implode(" OR ", $conditions) . ")";
+                } else {
+                    // Try to match the service name directly in the job_role
+                    $sql .= " AND job_role LIKE ?";
+                    $params[] = "%$service_name%";
                 }
 
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
                 $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-                // Fallback: If no strict match, find ALL helpers
-                if (empty($helpers)) {
-                    $stmt = $pdo->query("SELECT id FROM users WHERE role = 'helper'");
-                    $helpers = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                }
+                // No random fallback anymore. If no match, it stays pending.
 
                 $assigned_helper_id = null;
                 $status = 'pending';
@@ -96,10 +105,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings 
-                    (user_id, service_id, helper_id, date, time, location, budget, special_instructions, status) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (user_id, service_id, helper_id, date, time, location, budget, special_instructions, status, payment_method) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $time, $location, $budget, $instructions, $status]);
+                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $time, $location, $budget, $instructions, $status, $payment_method]);
                 $booking_id = $pdo->lastInsertId();
                 $recent_booking_ids[] = $booking_id;
 

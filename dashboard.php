@@ -130,6 +130,29 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             color: #f59e0b;
         }
 
+        .pay-option.active {
+            border-color: var(--primary-color) !important;
+            background: #eff6ff !important;
+            color: var(--primary-color) !important;
+        }
+
+        .payment-status-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-weight: 600;
+        }
+
+        .ps-paid {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .ps-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
         #map {
             height: 200px;
             width: 100%;
@@ -326,7 +349,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person</span> Profile
             </div>
-            <div class="nav-item cart-nav-item" onclick="openCartModal()"
+            <div class="nav-item cart-nav-item" onclick="openBookingModal()"
                 style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
                 <div style="display: flex; align-items: center; gap: 1rem;"><span
                         class="material-icons">shopping_cart</span> Cart</div>
@@ -543,7 +566,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 </div>
                                 <div id="action-container-parent-<?php echo $service['id']; ?>">
                                     <button class="btn btn-primary btn-block"
-                                        onclick="showBookingOptionsParent('<?php echo $service['id']; ?>', '<?php echo htmlspecialchars($service['name'], ENT_QUOTES); ?>', <?php echo $service['base_price']; ?>)">Book</button>
+                                        onclick="openBookingModal('<?php echo $service['id']; ?>', '<?php echo htmlspecialchars($service['name'], ENT_QUOTES); ?>', <?php echo $service['base_price']; ?>)">Book</button>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -563,21 +586,31 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 </div>
             </div>
 
-            <!-- Booking section renamed to Cart Modal -->
             <div id="bookingModal" class="modal">
                 <div class="modal-content">
                     <span class="close" onclick="closeBookingModal()">&times;</span>
-                    <h2>Cart Checkout</h2>
+                    <h2 id="bookingModalTitle">Book Service</h2>
+
+                    <div id="singleServiceInfo"
+                        style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; display: none;">
+                        <div style="font-weight: 700; color: var(--primary-color); font-size: 1.1rem;"
+                            id="modalServiceName"></div>
+                        <div style="font-weight: 600; color: #4b5563;">Price: ₹<span id="modalServicePrice"></span>
+                        </div>
+                    </div>
+
                     <div id="cartItemsContainer"
                         style="margin: 1rem 0; max-height: 200px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem;">
                         <p style="text-align:center; color: var(--text-light); margin:0;">Your cart is empty.</p>
                     </div>
-                    <div style="text-align: right; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Total:
+                    <div id="cartTotalSection"
+                        style="text-align: right; font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Total:
                         ₹<span id="cartTotalDisplay">0</span></div>
 
                     <form action="api/booking_action.php" method="POST" id="checkoutForm"
                         onsubmit="return validateCheckout()">
                         <input type="hidden" name="action" value="book">
+                        <input type="hidden" name="service_id" id="modalServiceId">
                         <div id="cartHiddenInputs"></div>
 
                         <div class="input-group">
@@ -588,8 +621,22 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         </div>
                         <div class="input-group">
                             <label>Time</label>
-                            <input type="time" name="time" id="bookingTime" class="form-control" required
-                                oninput="validateBookingField(this)">
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <select id="hourSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                                    <?php for ($i = 1; $i <= 12; $i++)
+                                        echo "<option value='" . str_pad($i, 2, '0', STR_PAD_LEFT) . "'>$i</option>"; ?>
+                                </select>
+                                <span style="font-weight: bold; color: #666;">:</span>
+                                <select id="minuteSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                                    <?php for ($i = 0; $i < 60; $i += 5)
+                                        echo "<option value='" . str_pad($i, 2, '0', STR_PAD_LEFT) . "'>" . str_pad($i, 2, '0', STR_PAD_LEFT) . "</option>"; ?>
+                                </select>
+                                <select id="ampmSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                                    <option value="AM" <?php echo date('H') < 12 ? 'selected' : ''; ?>>AM</option>
+                                    <option value="PM" <?php echo date('H') >= 12 ? 'selected' : ''; ?>>PM</option>
+                                </select>
+                            </div>
+                            <input type="hidden" name="time" id="bookingTime" required>
                             <div class="error-message" id="timeError">Please select a valid time.</div>
                         </div>
                         <div class="input-group">
@@ -610,11 +657,37 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             </div>
                             <div class="error-message" id="locationError">Please provide a service location.</div>
                         </div>
+                        <div class="input-group">
+                            <label>Payment Method</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; cursor: pointer; text-align: center;"
+                                    onclick="selectPayment('Cash', this)" id="payCash" class="pay-option active">
+                                    <span class="material-icons"
+                                        style="font-size: 20px; vertical-align: middle;">payments</span>
+                                    <div style="font-size: 0.75rem;">Cash After</div>
+                                </div>
+                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; cursor: pointer; text-align: center;"
+                                    onclick="selectPayment('Online', this)" id="payOnline" class="pay-option">
+                                    <span class="material-icons"
+                                        style="font-size: 20px; vertical-align: middle;">account_balance_wallet</span>
+                                    <div style="font-size: 0.75rem;">Online Pay</div>
+                                </div>
+                            </div>
+                            <input type="hidden" name="payment_method" id="paymentMethodInput" value="Cash">
+                        </div>
                         <div id="map"></div>
 
 
-                        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Confirm
-                            Booking Request</button>
+                        <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1rem; margin-top: 1.5rem;">
+                            <button type="button" class="btn btn-outline" id="modalAddToCartBtn"
+                                style="padding: 0.8rem;" onclick="addCurrentToCart()">
+                                <span class="material-icons"
+                                    style="font-size: 18px; vertical-align: middle;">add_shopping_cart</span> Add to
+                                Cart
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="modalSubmitBtn"
+                                style="padding: 0.8rem;">Confirm Booking</button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -647,14 +720,25 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 <div class="bc-body">
                                     <div class="bc-helper-info">
                                         <?php if ($booking['helper_name']): ?>
-                                            <div class="bc-avatar">
-                                                <span class="material-icons">person</span>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; font-size: 0.95rem;">
-                                                    <?php echo htmlspecialchars($booking['helper_name']); ?>
+                                            <div style="display: flex; gap: 12px; align-items: center; cursor: pointer;"
+                                                onclick="fetchAndShowHelperProfile('<?php echo $booking['helper_id']; ?>')">
+                                                <div class="bc-avatar">
+                                                    <span class="material-icons">person</span>
                                                 </div>
-                                                <div style="font-size: 0.8rem; color: var(--text-light);">Assigned Helper</div>
+                                                <div>
+                                                    <div style="font-weight: 600; font-size: 0.95rem; color: var(--primary-color);">
+                                                        <?php echo htmlspecialchars($booking['helper_name']); ?>
+                                                    </div>
+                                                    <div style="font-size: 0.8rem; color: var(--text-light);">Assigned Helper</div>
+                                                </div>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Payment: <?php echo $booking['payment_method']; ?></div>
+                                                <?php if ($booking['payment_status'] == 'paid'): ?>
+                                                    <span class="payment-status-badge ps-paid">Paid</span>
+                                                <?php else: ?>
+                                                    <span class="payment-status-badge ps-pending">Pending</span>
+                                                <?php endif; ?>
                                             </div>
                                         <?php else: ?>
                                             <div class="bc-avatar" style="background: #fdf2f8; color: #db2777;">
@@ -684,11 +768,17 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                             <span style="font-size: 0.85rem; color: var(--primary-color); font-weight: 600;">
                                                 <span class="material-icons"
                                                     style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to
-                                                message? View details.
+                                                message? <a href="#"
+                                                    onclick="fetchAndShowHelperProfile('<?php echo $booking['helper_id']; ?>'); return false;"
+                                                    style="color: var(--primary-color); text-decoration: underline; cursor: pointer;">View
+                                                    details.</a>
                                             </span>
                                         <?php endif; ?>
                                     </div>
                                     <div class="bc-actions">
+                                        <?php if ($booking['status'] == 'completed' && $booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending'): ?>
+                                            <button onclick="alert('Proceeding to Secure Payment Gateway...')" class="btn btn-primary" style="background: #10B981; border-color: #10B981;">Pay Now</button>
+                                        <?php endif; ?>
                                         <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
                                             <form action="api/booking_action.php" method="POST" style="margin: 0;"
                                                 onsubmit="return confirm('Are you sure you want to cancel this booking?');">
@@ -813,11 +903,14 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             <div class="input-group">
                                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-light);">Phone
                                     Number</label>
-                                <input type="tel" name="phone_number"
+                                <input type="tel" id="profile_phone" name="phone_number"
                                     value="<?php echo htmlspecialchars($user_details['phone_number'] ?? ''); ?>"
                                     pattern="[0-9]{10}" maxlength="10"
                                     style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px;"
                                     placeholder="10-digit number">
+                                <small id="profile_phone_error"
+                                    style="color: #EF4444; font-size: 0.75rem; display: none; margin-top: 0.25rem;">Please
+                                    enter a valid 10-digit phone number.</small>
                             </div>
                             <div class="input-group">
                                 <label
@@ -916,7 +1009,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
                                 <div style="font-weight: 700; color: var(--primary-color); font-size: 1rem;">₹${s.base_price}</div>
                                 <div id="action-container-sub-${s.id}">
-                                    <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="showBookingOptionsSub('${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.base_price})">Book</button>
+                                    <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="openBookingModal('${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.base_price})">Book</button>
                                 </div>
                             </div>
                         </div>
@@ -933,43 +1026,58 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         let cart = [];
 
-        function showBookingOptionsParent(id, name, price) {
-            const container = document.getElementById('action-container-parent-' + id);
-            container.innerHTML = `
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn btn-outline" style="flex:1; font-size: 0.85rem; padding: 0.5rem;" onclick="addToCart('${id}', '${name}', ${price}, this)">Add to Cart</button>
-                    <button class="btn btn-primary" style="flex:1; font-size: 0.85rem; padding: 0.5rem;" onclick="addToCart('${id}', '${name}', ${price}, null); openCartModal();">Continue Booking</button>
-                </div>
-            `;
+        function openBookingModal(id = null, name = null, price = null) {
+            const singleInfo = document.getElementById('singleServiceInfo');
+            const cartItems = document.getElementById('cartItemsContainer');
+            const cartTotal = document.getElementById('cartTotalSection');
+            const addToCartBtn = document.getElementById('modalAddToCartBtn');
+            const title = document.getElementById('bookingModalTitle');
+            const submitBtn = document.getElementById('modalSubmitBtn');
+
+            if (id) {
+                // Single Service Mode
+                title.innerText = "Book Service";
+                singleInfo.style.display = 'block';
+                cartItems.style.display = 'none';
+                cartTotal.style.display = 'none';
+                addToCartBtn.style.display = 'flex';
+                submitBtn.innerText = "Confirm Booking";
+
+                document.getElementById('modalServiceName').innerText = name;
+                document.getElementById('modalServicePrice').innerText = price;
+                document.getElementById('modalServiceId').value = id;
+            } else {
+                // Cart Checkout Mode
+                title.innerText = "Cart Checkout";
+                singleInfo.style.display = 'none';
+                cartItems.style.display = 'block';
+                cartTotal.style.display = 'block';
+                addToCartBtn.style.display = 'none';
+                submitBtn.innerText = "Checkout All Items";
+                document.getElementById('modalServiceId').value = '';
+                updateCartUI();
+            }
+
+            bookingModal.style.display = 'block';
+            initMap();
         }
 
-        function showBookingOptionsSub(id, name, price) {
-            const container = document.getElementById('action-container-sub-' + id);
-            container.innerHTML = `
-                <div style="display: flex; gap: 0.25rem;">
-                    <button class="btn btn-outline" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" onclick="addToCart('${id}', '${name}', ${price}, this)">Add to Cart</button>
-                    <button class="btn btn-primary" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" onclick="addToCart('${id}', '${name}', ${price}, null); openCartModal();">Continue Booking</button>
-                </div>
-            `;
+        function addCurrentToCart() {
+            const id = document.getElementById('modalServiceId').value;
+            const name = document.getElementById('modalServiceName').innerText;
+            const price = document.getElementById('modalServicePrice').innerText;
+
+            if (id) {
+                cart.push({ id: id, name: name, price: parseFloat(price) });
+                updateCartUI();
+                alert(`${name} added to cart!`);
+                closeBookingModal();
+            }
         }
 
-        function addToCart(serviceId, serviceName, basePrice, btnElement) {
+        function addToCart(serviceId, serviceName, basePrice) {
             cart.push({ id: serviceId, name: serviceName, price: parseFloat(basePrice) });
             updateCartUI();
-
-            if (btnElement) {
-                const originalText = btnElement.innerHTML;
-                btnElement.innerHTML = 'Added ✔';
-                btnElement.style.backgroundColor = 'var(--success)';
-                btnElement.style.borderColor = 'var(--success)';
-                btnElement.style.color = '#fff';
-                setTimeout(() => {
-                    btnElement.innerHTML = originalText;
-                    btnElement.style.backgroundColor = '';
-                    btnElement.style.borderColor = '';
-                    btnElement.style.color = '';
-                }, 1000);
-            }
         }
 
         function removeFromCart(index) {
@@ -1014,9 +1122,10 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             totalDisplay.innerText = total;
         }
 
-        function openCartModal() {
-            bookingModal.style.display = 'block';
-            initMap();
+        function selectPayment(method, element) {
+            document.getElementById('paymentMethodInput').value = method;
+            document.querySelectorAll('.pay-option').forEach(opt => opt.classList.remove('active'));
+            element.classList.add('active');
         }
 
         function closeBookingModal() {
@@ -1024,8 +1133,9 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         function validateCheckout() {
-            if (cart.length === 0) {
-                alert('Your cart is empty. Please add services to book.');
+            const serviceId = document.getElementById('modalServiceId').value;
+            if (!serviceId && cart.length === 0) {
+                alert('Please select a service or check your cart.');
                 return false;
             }
             return true;
@@ -1214,6 +1324,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         const profileModal = document.getElementById('helperProfileModal');
 
+        function fetchAndShowHelperProfile(helperId) {
+            fetch(`api/get_helper_details.php?helper_id=${helperId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        viewHelperProfile(data.helper);
+                    } else {
+                        alert(data.error || 'Failed to fetch helper details');
+                    }
+                })
+                .catch(e => console.error('Error:', e));
+        }
+
         function viewHelperProfile(app) {
             const content = document.getElementById('helperProfileContent');
             content.innerHTML = `
@@ -1221,23 +1344,35 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         ${app.profile_photo ? `<img src="${app.profile_photo}" style="width: 100%; height: 100%; object-fit: cover;">` : '<span class="material-icons" style="font-size: 48px; color: #aaa;">person</span>'}
                 </div>
                 <h2 style="margin: 0 0 0.5rem;">${app.name}</h2>
-                <div style="font-size: 0.9rem; color: #555; margin-bottom: 0.5rem;">${app.job_role || ''}</div>
+                <div style="font-size: 0.9rem; color: #555; margin-bottom: 0.5rem;">${app.job_role || 'Helper'}</div>
                 <div style="color: #666; font-size: 0.95rem; margin-bottom: 1rem;">
-                    <span style="color: #F59E0B; font-weight: bold;">${app.average_rating || 0} ★</span> 
+                    <span style="color: #F59E0B; font-weight: bold;">${parseFloat(app.average_rating || 0).toFixed(1)} ★</span> 
                     • ${app.completed_jobs_count || 0} Jobs Done
-                    ${app.gender ? `• ${app.gender}` : ''}
-                    <br>
-                    ${app.hourly_rate ? `<span style="color: #10B981; font-weight: 600;">₹${app.hourly_rate}/hr</span>` : ''}
                 </div>
-                <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; text-align: left; margin-bottom: 1rem;">
-                    <h4 style="margin: 0 0 0.5rem; color: #333;">About Helper</h4>
-                    <p style="color: #555; font-size: 0.9rem; margin: 0; line-height: 1.5;">
-                        ${app.bio || 'No bio provided.'}
+                
+                ${app.phone_number ? `
+                <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.5rem;">
+                    <a href="tel:${app.phone_number}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons" style="font-size: 18px;">phone</span> Call
+                    </a>
+                    <a href="https://wa.me/91${app.phone_number}" target="_blank" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-color: #25D366; color: #25D366; display: flex; align-items: center; gap: 4px;">
+                        <span class="material-icons" style="font-size: 18px;">chat</span> WhatsApp
+                    </a>
+                </div>
+                ` : ''}
+
+                <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; text-align: left; margin-bottom: 1rem; border: 1px solid #f3f4f6;">
+                    <h4 style="margin: 0 0 0.5rem; color: #374151; font-size: 0.9rem;">About Helper</h4>
+                    <p style="color: #6B7280; font-size: 0.85rem; margin: 0; line-height: 1.5;">
+                        ${app.bio || 'Professional helper dedicated to providing high-quality service.'}
                     </p>
-                </div>
-                <div style="text-align: left; margin-bottom: 1rem;">
-                        <small style="display: block; color: #888;">Expected Arrival</small>
-                        <strong>${app.arrival_estimate || 'Not specified'}</strong>
+                    ${app.address ? `
+                    <h4 style="margin: 0.75rem 0 0.25rem; color: #374151; font-size: 0.9rem;">Home Location</h4>
+                    <p style="color: #6B7280; font-size: 0.85rem; margin: 0;">
+                        <span class="material-icons" style="font-size: 14px; vertical-align: middle;">location_on</span>
+                        ${app.address}
+                    </p>
+                    ` : ''}
                 </div>
             `;
             profileModal.style.display = 'block';
@@ -1294,6 +1429,38 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 });
         }
 
+        // 12-Hour Clock Sync
+        function syncTime() {
+            let h = parseInt(document.getElementById('hourSelect').value);
+            const m = document.getElementById('minuteSelect').value;
+            const p = document.getElementById('ampmSelect').value;
+
+            let hours24 = h;
+            if (p === 'PM' && h < 12) hours24 += 12;
+            if (p === 'AM' && h === 12) hours24 = 0;
+
+            const timeValue = String(hours24).padStart(2, '0') + ":" + m;
+            const timeInput = document.getElementById('bookingTime');
+            timeInput.value = timeValue;
+            validateBookingField(timeInput);
+        }
+
+        // Add listeners for the 12-hour picker
+        document.addEventListener('DOMContentLoaded', () => {
+            const hSel = document.getElementById('hourSelect');
+            const mSel = document.getElementById('minuteSelect');
+            const pSel = document.getElementById('ampmSelect');
+
+            if (hSel && mSel && pSel) {
+                hSel.addEventListener('change', syncTime);
+                mSel.addEventListener('change', syncTime);
+                pSel.addEventListener('change', syncTime);
+
+                // Initial sync
+                syncTime();
+            }
+        });
+
         // Live Validation Logic
         function validateBookingField(input) {
             const errorEl = input.parentElement.querySelector('.error-message') ||
@@ -1333,7 +1500,65 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             return isValid;
         }
 
-        // Intercept form submission to validate everything
+        // Profile Phone Validation
+        const profilePhoneInput = document.getElementById('profile_phone');
+        const profilePhoneError = document.getElementById('profile_phone_error');
+
+        if (profilePhoneInput) {
+            profilePhoneInput.addEventListener('input', function () {
+                // Keep only numeric characters
+                this.value = this.value.replace(/\D/g, '');
+
+                if (this.value === '') {
+                    this.style.borderColor = '#ddd';
+                    profilePhoneError.style.display = 'none';
+                } else {
+                    const isValidPrefix = /^[6-9]/.test(this.value);
+                    const isCorrectLength = this.value.length === 10;
+
+                    if (isValidPrefix && isCorrectLength) {
+                        this.style.borderColor = '#10B981'; // Green
+                        profilePhoneError.style.display = 'none';
+                    } else {
+                        this.style.borderColor = '#EF4444'; // Red
+                        profilePhoneError.style.display = 'block';
+                        if (!isValidPrefix) {
+                            profilePhoneError.textContent = "Number must start with 6, 7, 8, or 9.";
+                        } else {
+                            profilePhoneError.textContent = "Please enter a valid 10-digit phone number.";
+                        }
+                    }
+                }
+            });
+
+            // Re-validate on blur for better UX
+            profilePhoneInput.addEventListener('blur', function () {
+                const isValidPrefix = /^[6-9]/.test(this.value);
+                const isCorrectLength = this.value.length === 10;
+                if (this.value.length > 0 && (!isValidPrefix || !isCorrectLength)) {
+                    this.style.borderColor = '#EF4444';
+                    profilePhoneError.style.display = 'block';
+                }
+            });
+        }
+
+        // Intercept profile form submission to validate everything
+        const profileForm = document.querySelector('#profile-section form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', function (e) {
+                const isValidPrefix = /^[6-9]/.test(profilePhoneInput.value);
+                const isCorrectLength = profilePhoneInput.value.length === 10;
+
+                if (profilePhoneInput && (!isValidPrefix || !isCorrectLength)) {
+                    e.preventDefault();
+                    profilePhoneInput.style.borderColor = '#EF4444';
+                    profilePhoneError.style.display = 'block';
+                    alert("Please enter a valid 10-digit phone number starting with 6-9.");
+                }
+            });
+        }
+
+        // Intercept booking form submission to validate everything
         document.querySelector('#bookingModal form').addEventListener('submit', function (e) {
             const inputs = this.querySelectorAll('input[required], textarea[required]');
             let allValid = true;

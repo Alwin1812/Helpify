@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     service_id INT NOT NULL,
     date DATE NOT NULL,
     status ENUM('pending', 'confirmed', 'completed', 'cancelled') DEFAULT 'pending',
+    payment_method ENUM('Cash', 'Online') DEFAULT 'Cash',
     payment_status ENUM('pending', 'paid') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),

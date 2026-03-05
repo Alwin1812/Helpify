@@ -88,23 +88,36 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
         const phoneError = document.getElementById('phoneError');
         const submitBtn = document.getElementById('submitBtn');
 
-        phoneInput.addEventListener('input', function (e) {
-            // Remove non-numeric characters
-            this.value = this.value.replace(/\D/g, '');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function() {
+                // Keep only numeric characters
+                this.value = this.value.replace(/\D/g, '');
 
-            // Validate length
-            if (this.value.length === 10) {
-                this.style.borderColor = '#10B981'; // Green
-                phoneError.style.display = 'none';
-                submitBtn.disabled = false;
-            } else {
-                this.style.borderColor = '#EF4444'; // Red
-                if (this.value.length > 0) {
-                    phoneError.style.display = 'block';
+                if (this.value === '') {
+                    this.style.borderColor = '#ddd';
+                    phoneError.style.display = 'none';
+                    submitBtn.disabled = true;
+                } else {
+                    const isValidPrefix = /^[6-9]/.test(this.value);
+                    const isCorrectLength = this.value.length === 10;
+                    
+                    if (isValidPrefix && isCorrectLength) {
+                        this.style.borderColor = '#10B981'; // Green
+                        phoneError.style.display = 'none';
+                        submitBtn.disabled = false;
+                    } else {
+                        this.style.borderColor = '#EF4444'; // Red
+                        phoneError.style.display = 'block';
+                        if (!isValidPrefix) {
+                            phoneError.textContent = "Number must start with 6, 7, 8, or 9.";
+                        } else {
+                            phoneError.textContent = "Please enter a valid 10-digit phone number.";
+                        }
+                        submitBtn.disabled = true;
+                    }
                 }
-                submitBtn.disabled = true;
-            }
-        });
+            });
+        }
 
         // Map & Location Logic
         let setupMap, setupMarker;
