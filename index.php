@@ -158,6 +158,62 @@ session_start();
         </div>
     </section>
 
+    <!-- Helpify Bundles Section -->
+    <section class="bundles-section" id="bundles" style="padding: 5rem 2rem; background: #f8fafc;">
+        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+            <h2 style="font-size: 2.5rem; margin-bottom: 1rem; color: #0F172A;">Helpify Bundles <span
+                    style="background: #2563EB; color: white; padding: 0.2rem 0.8rem; border-radius: 99px; font-size: 1rem; vertical-align: middle; margin-left: 10px;">SAVE
+                    UP TO 20%</span></h2>
+            <p style="color: #64748B; margin-bottom: 3rem; font-size: 1.1rem;">Multi-service packages for a complete
+                home
+                care experience.</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem;">
+                <?php
+                require_once 'includes/db_connect.php';
+                $bundles = $pdo->query("SELECT * FROM service_bundles")->fetchAll();
+                foreach ($bundles as $bundle): ?>
+                    <div style="border: 1px solid #E2E8F0; border-radius: 24px; overflow: hidden; transition: all 0.3s; cursor: pointer; background: white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);"
+                        onmouseover="this.style.transform='translateY(-10px)'; this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05)'">
+                        <div style="background: #eff6ff; padding: 2.5rem 2rem; text-align: left;">
+                            <div
+                                style="color: #2563EB; font-weight: 700; margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
+                                SAVE <?php echo $bundle['discount_percentage']; ?>%</div>
+                            <h3 style="font-size: 1.75rem; margin-bottom: 0.75rem; color: #0F172A;">
+                                <?php echo htmlspecialchars($bundle['name']); ?>
+                            </h3>
+                            <p style="color: #64748B; font-size: 0.95rem; line-height: 1.5;">
+                                <?php echo htmlspecialchars($bundle['description']); ?>
+                            </p>
+                        </div>
+                        <div style="padding: 2rem; text-align: left; background: white;">
+                            <div style="font-weight: 600; color: #0F172A; margin-bottom: 1rem; font-size: 0.9rem;">What's
+                                included:</div>
+                            <ul style="list-style: none; padding: 0; margin-bottom: 2rem;">
+                                <?php
+                                $stmt = $pdo->prepare("SELECT s.name FROM bundle_items bi JOIN services s ON bi.service_id = s.id WHERE bi.bundle_id = ?");
+                                $stmt->execute([$bundle['id']]);
+                                $items = $stmt->fetchAll();
+                                foreach ($items as $item): ?>
+                                    <li
+                                        style="display: flex; align-items: center; gap: 10px; margin-bottom: 0.75rem; font-size: 1rem; color: #334155;">
+                                        <span class="material-icons"
+                                            style="color: #10B981; font-size: 20px;">check_circle</span>
+                                        <?php echo htmlspecialchars($item['name']); ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                            <a href="login.php" class="btn btn-primary"
+                                style="width: 100%; text-align: center; display: block; background: #0F172A; padding: 1rem; border-radius: 12px; font-weight: 600; text-decoration: none; color: white;">Book
+                                Bundle</a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+
     <!-- Minimal Stats Bar Section -->
     <section class="stats-bar-section">
         <div class="container">

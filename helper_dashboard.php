@@ -70,8 +70,28 @@ $my_jobs = $stmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helper Dashboard - Helpify</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="assets/css/chat.css?v=<?php echo time(); ?>">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .payment-status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .ps-paid {
+            background: #ECFDF5;
+            color: #10B981;
+        }
+
+        .ps-pending {
+            background: #FFF7ED;
+            color: #F97316;
+        }
+    </style>
 </head>
 
 <body>
@@ -129,6 +149,9 @@ $my_jobs = $stmt->fetchAll();
             </div>
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person_outline</span> Profile
+            </div>
+            <div class="nav-item" onclick="showSection('complaints')">
+                <span class="material-icons">report_problem</span> Support & Complaints
             </div>
 
             <div
@@ -380,6 +403,21 @@ $my_jobs = $stmt->fetchAll();
                                                 <span
                                                     style="font-size: 0.8rem; color: #9CA3AF; margin-left: 0.5rem;">#<?php echo $job['id']; ?></span>
                                             </p>
+                                            <div
+                                                style="margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 4px;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <span style="font-size: 0.8rem; color: #666;">Payment:
+                                                        <strong><?php echo htmlspecialchars($job['payment_method']); ?></strong></span>
+                                                    <?php if ($job['payment_status'] === 'paid'): ?>
+                                                        <span class="payment-status-badge ps-paid">Paid</span>
+                                                    <?php else: ?>
+                                                        <span class="payment-status-badge ps-pending">Pending</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div style="font-size: 1rem; font-weight: 700; color: #111827;">
+                                                    Amount: ₹<?php echo number_format($job['total_amount'], 2); ?>
+                                                </div>
+                                            </div>
                                             <div class="flex gap-4" style="font-size: 0.85rem; color: #4B5563;">
                                                 <span class="flex items-center gap-1">
                                                     <span class="material-icons" style="font-size: 16px;">calendar_today</span>
@@ -431,6 +469,31 @@ $my_jobs = $stmt->fetchAll();
                                                 style="color: #10B981; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;">
                                                 <span class="material-icons" style="font-size: 16px;">task_alt</span> Finished
                                             </span>
+                                        <?php endif; ?>
+                                        <?php if ($job['payment_method'] === 'Cash' && $job['payment_status'] === 'pending' && in_array($job['status'], ['in-progress', 'completed'])): ?>
+                                            <button class="btn btn-primary"
+                                                style="margin-top: 8px; width: 100%; background: #F97316; border: none; font-size: 0.8rem;"
+                                                onclick="markAsPaid('<?php echo $job['id']; ?>')">
+                                                <span class="material-icons"
+                                                    style="font-size: 16px; vertical-align: middle;">paid</span>
+                                                Received Cash
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if (in_array($job['status'], ['confirmed', 'in-progress'])): ?>
+                                            <button class="btn btn-outline"
+                                                style="margin-top: 8px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.8rem;"
+                                                onclick="openChat('<?php echo $job['id']; ?>', '<?php echo $job['user_id']; ?>', '<?php echo htmlspecialchars($job['user_name']); ?>')">
+                                                <span class="material-icons" style="font-size: 16px;">chat</span> Chat
+                                            </button>
+                                        <?php endif; ?>
+                                        <?php if ($job['status'] !== 'cancelled'): ?>
+                                            <button class="btn btn-outline"
+                                                style="margin-top: 8px; width: 100%; color: #EF4444; border-color: #EF4444; font-size: 0.8rem; padding: 0.4rem 1rem;"
+                                                onclick="openComplaintModal('<?php echo $job['id']; ?>', '<?php echo htmlspecialchars($job['service_name']); ?>')">
+                                                <span class="material-icons"
+                                                    style="font-size: 16px; vertical-align: middle;">report_problem</span>
+                                                Report Issue
+                                            </button>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -569,6 +632,14 @@ $my_jobs = $stmt->fetchAll();
                 </form>
             </div>
 
+            <!-- Complaints Section -->
+            <div id="complaints-section" class="tab-content" style="display: none; padding: 1.5rem;">
+                <h3 style="margin-bottom: 2rem; color: #111827;">Support & Complaints</h3>
+                <div id="complaintList" class="grid"
+                    style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                    <!-- Complaints will be loaded here by JS -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -590,6 +661,248 @@ $my_jobs = $stmt->fetchAll();
                 navItems[indexMap[sectionId]].classList.add('active');
             }
         }
+    </script>
+    <!-- Chat Modal Overlay -->
+    <div id="chatOverlay" class="chat-modal-overlay">
+        <div class="chat-header">
+            <h4><span class="material-icons">chat</span> Chat with <span id="chatReceiverName">Client</span></h4>
+            <span class="material-icons close-chat" onclick="closeChat()">close</span>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+            <!-- Messages will be loaded here -->
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Type a message...">
+            <button class="chat-send-btn" onclick="sendMessage()">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const currentUserId = <?php echo $_SESSION['user_id']; ?>;
+    </script>
+    <script src="assets/js/chat.js?v=<?php echo time(); ?>"></script>
+    <script>
+        // Location Tracking
+        function trackLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const fd = new FormData();
+                    fd.append('lat', pos.coords.latitude);
+                    fd.append('lng', pos.coords.longitude);
+                    fetch('api/update_location.php', {
+                        method: 'POST',
+                        body: fd
+                    }).catch(e => console.error("Location update failed", e));
+                }, (err) => console.warn("Geolocation permission or error", err), {
+                    enableHighAccuracy: true
+                });
+            }
+        }
+
+        // Only track if there is an active job confirmed or in-progress
+        const activeJobsCount = <?php echo count(array_filter($my_jobs, fn($j) => in_array($j['status'], ['confirmed', 'in-progress']))); ?>;
+        if (activeJobsCount > 0) {
+            trackLocation(); // Initial call
+            setInterval(trackLocation, 30000); // Every 30 seconds
+        }
+
+        function markAsPaid(bookingId) {
+            if (!confirm('Are you sure you have received the cash payment for this booking?')) return;
+
+            const fd = new FormData();
+            fd.append('booking_id', bookingId);
+
+            fetch('api/mark_as_paid.php', {
+                method: 'POST',
+                body: fd
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('An error occurred. Please try again.');
+                });
+        }
+    </script>
+    <!-- Complaint Modal -->
+    <div id="complaintModal" class="chat-modal-overlay"
+        style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+        <div style="background: white; width: 400px; padding: 2rem; border-radius: 12px; position: relative;">
+            <span class="material-icons" style="position: absolute; right: 1rem; top: 1rem; cursor: pointer;"
+                onclick="closeComplaintModal()">close</span>
+            <h2 style="margin-bottom: 1rem; color: #DC2626;">Report Issue</h2>
+            <p id="complaintBookingInfo" style="font-size: 0.9rem; color: #6B7280; margin-bottom: 1.5rem;"></p>
+            <form id="complaintForm">
+                <input type="hidden" id="complaintBookingId" name="booking_id">
+                <textarea id="complaintDescription" name="description" placeholder="What's the issue with this job?"
+                    required
+                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 1rem; height: 100px; resize: none;"></textarea>
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; background: #DC2626; border: none;">Submit Report</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Complaint Chat Overlay (Floating) -->
+    <div id="complaintChatOverlay" class="chat-modal-overlay">
+        <div class="chat-header" style="background: #DC2626;">
+            <h4><span class="material-icons">support_agent</span> Admin Support</h4>
+            <span class="material-icons close-chat" onclick="closeComplaintChat()">close</span>
+        </div>
+        <div id="complaintMessages" class="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="complaintChatInput" placeholder="Type a message...">
+            <button class="chat-send-btn" style="background: #DC2626;" onclick="sendComplaintMessage()">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function openComplaintModal(bookingId, serviceName) {
+            document.getElementById('complaintBookingId').value = bookingId;
+            document.getElementById('complaintBookingInfo').textContent = "Job: " + serviceName + " (#" + bookingId + ")";
+            document.getElementById('complaintModal').style.display = 'flex';
+        }
+
+        function closeComplaintModal() {
+            document.getElementById('complaintModal').style.display = 'none';
+        }
+
+        document.getElementById('complaintForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('action', 'submit');
+
+            fetch('api/complaint_action.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        closeComplaintModal();
+                        loadComplaints();
+                    }
+                });
+        });
+
+        function loadComplaints() {
+            fetch('api/complaint_action.php?action=fetch')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('complaintList');
+                        if (!container) return;
+                        container.innerHTML = '';
+                        if (data.complaints.length === 0) {
+                            container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #94a3b8; grid-column: 1/-1;"><p>No active complaints.</p></div>';
+                            return;
+                        }
+
+                        data.complaints.forEach(c => {
+                            const card = document.createElement('div');
+                            card.className = 'card';
+                            card.style.cursor = 'pointer';
+                            card.style.borderLeft = '4px solid ' + (c.status === 'resolved' ? '#10B981' : (c.status === 'pending' ? '#F59E0B' : '#94a3b8'));
+                            card.onclick = () => openComplaintChat(c.id);
+
+                            card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <h4 style="margin: 0;">${c.service_name || 'General Support'}</h4>
+                                    <p style="font-size: 0.9rem; color: #64748B; margin: 0.5rem 0;">${c.description}</p>
+                                    <small style="color: #94a3b8;">${new Date(c.created_at).toLocaleDateString()}</small>
+                                </div>
+                                <span class="status-badge" style="background: #f1f5f9; color: #475569;">${c.status.toUpperCase()}</span>
+                            </div>
+                        `;
+                            container.appendChild(card);
+                        });
+                    }
+                });
+        }
+
+        let currentComplaintId = null;
+        let complaintPolling = null;
+
+        function openComplaintChat(complaintId) {
+            currentComplaintId = complaintId;
+            document.getElementById('complaintChatOverlay').style.display = 'flex';
+            fetchComplaintMessages();
+            if (complaintPolling) clearInterval(complaintPolling);
+            complaintPolling = setInterval(fetchComplaintMessages, 3000);
+        }
+
+        function closeComplaintChat() {
+            document.getElementById('complaintChatOverlay').style.display = 'none';
+            if (complaintPolling) clearInterval(complaintPolling);
+        }
+
+        function fetchComplaintMessages() {
+            if (!currentComplaintId) return;
+            fetch(`api/complaint_action.php?action=fetch_messages&complaint_id=${currentComplaintId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('complaintMessages');
+                        container.innerHTML = '';
+                        data.messages.forEach(msg => {
+                            const div = document.createElement('div');
+                            const isSent = msg.sender_id == currentUserId;
+                            div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
+                            if (!isSent) div.style.background = '#f1f5f9';
+
+                            div.innerHTML = `
+                            <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; color: ${isSent ? '#fff' : '#475569'}">${msg.sender_role === 'admin' ? 'Support' : msg.sender_name}</div>
+                            ${msg.message}
+                            <span class="message-time" style="color: ${isSent ? 'rgba(255,255,255,0.7)' : '#94a3b8'}">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        `;
+                            container.appendChild(div);
+                        });
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+        }
+
+        function sendComplaintMessage() {
+            const input = document.getElementById('complaintChatInput');
+            const message = input.value.trim();
+            if (!message || !currentComplaintId) return;
+
+            const fd = new FormData();
+            fd.append('action', 'send_message');
+            fd.append('complaint_id', currentComplaintId);
+            fd.append('message', message);
+
+            input.value = '';
+            fetch('api/complaint_action.php', { method: 'POST', body: fd })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) fetchComplaintMessages();
+                });
+        }
+
+        document.getElementById('complaintChatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendComplaintMessage();
+        });
+
+        // Initialize helper scripts
+        const originalShowSectionHelper = showSection;
+        showSection = function (sectionId) {
+            originalShowSectionHelper(sectionId);
+            if (sectionId === 'complaints') loadComplaints();
+        };
     </script>
 </body>
 

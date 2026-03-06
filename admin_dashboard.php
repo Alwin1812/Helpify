@@ -98,6 +98,31 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
     // 4. Total Platform Revenue
     $total_platform_revenue = $pdo->query("SELECT SUM(total_amount) FROM bookings WHERE status != 'cancelled'")->fetchColumn() ?: 0;
 }
+
+// Fetch Complaints
+$complaints = [];
+if ($role_filter === 'complaints') {
+    // We join bookings and then join users AGAIN (as 'other_party') to find out who the other person in the job was.
+    $stmt = $pdo->prepare("
+        SELECT c.*, 
+               u.name as reporter_name, 
+               u.role as reporter_role,
+               s.name as service_name,
+               other_u.name as subject_name,
+               other_u.role as subject_role
+        FROM complaints c 
+        JOIN users u ON c.reporter_id = u.id 
+        LEFT JOIN bookings b ON c.booking_id = b.id 
+        LEFT JOIN services s ON b.service_id = s.id
+        LEFT JOIN users other_u ON (
+            (u.role = 'user' AND b.helper_id = other_u.id) OR 
+            (u.role = 'helper' AND b.user_id = other_u.id)
+        )
+        ORDER BY c.created_at DESC
+    ");
+    $stmt->execute();
+    $complaints = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -377,6 +402,114 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
             font-size: 0.9rem;
             cursor: pointer;
         }
+        /* Complaint Chat Styles */
+        .chat-modal-overlay {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 380px;
+            height: 500px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1000;
+            border: 1px solid #E5E7EB;
+        }
+
+        .chat-header {
+            padding: 1rem;
+            background: #2563EB;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h4 {
+            margin: 0;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            background: #F9FAFB;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message-bubble {
+            max-width: 80%;
+            padding: 0.75rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .received {
+            background: white;
+            border: 1px solid #E5E7EB;
+            align-self: flex-start;
+            color: #374151;
+        }
+
+        .sent {
+            background: #2563EB;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .message-time {
+            display: block;
+            font-size: 0.7rem;
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid #E5E7EB;
+            display: flex;
+            gap: 8px;
+            background: white;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+
+        .chat-send-btn {
+            background: #2563EB;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .close-chat {
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .close-chat:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -423,6 +556,10 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
             <a href="admin_dashboard.php?role=payments"
                 class="nav-link <?php echo $role_filter === 'payments' ? 'active' : ''; ?>">
                 <span class="material-icons">payments</span> Transactions
+            </a>
+            <a href="admin_dashboard.php?role=complaints"
+                class="nav-link <?php echo $role_filter === 'complaints' ? 'active' : ''; ?>">
+                <span class="material-icons">report_problem</span> Complaints
             </a>
 
             <div class="nav-section-title">System</div>
@@ -692,7 +829,76 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
                 </div>
             <?php endif; ?>
 
-            <?php if (!in_array($role_filter, ['all', 'user', 'helper'])): ?>
+            <?php if ($role_filter === 'complaints'): ?>
+                <!-- Complaints Table -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h3 style="font-size: 1.1rem; margin: 0;">Reported Issues & Complaints</h3>
+                        <span class="status-badge badge-red"><?php echo count($complaints); ?> Active</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Reporter</th>
+                                    <th>Service/Job</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($complaints) > 0): ?>
+                                    <?php foreach ($complaints as $c): ?>
+                                        <tr>
+                                            <td>
+                                                <div style="font-weight: 600; color: var(--primary-color);">
+                                                    <?php echo htmlspecialchars($c['reporter_name']); ?>
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: #6B7280; font-weight: 500; text-transform: uppercase;">
+                                                    <?php echo $c['reporter_role']; ?>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style="font-weight: 500;"><?php echo htmlspecialchars($c['service_name'] ?: 'General'); ?></div>
+                                                <div style="font-size: 0.8rem; color: #6B7280;">
+                                                    Job #<?php echo $c['booking_id']; ?> 
+                                                    <?php if ($c['subject_name']): ?>
+                                                        • Against: <strong><?php echo htmlspecialchars($c['subject_name']); ?></strong> (<?php echo $c['subject_role']; ?>)
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
+                                            <td style="max-width: 300px;">
+                                                <div style="font-size: 0.9rem; color: #4B5563;">
+                                                    <?php echo htmlspecialchars($c['description']); ?>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="status-badge" style="background: <?php echo $c['status'] === 'resolved' ? '#D1FAE5; color: #065F46;' : ($c['status'] === 'pending' ? '#FEF3C7; color: #92400E;' : '#F3F4F6; color: #374151;'); ?>">
+                                                    <?php echo ucfirst($c['status']); ?>
+                                                </span>
+                                            </td>
+                                            <td><?php echo date('M d, Y', strtotime($c['created_at'])); ?></td>
+                                            <td style="text-align: right;">
+                                                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openAdminComplaintChat(<?php echo $c['id']; ?>, '<?php echo addslashes($c['reporter_name']); ?>')">
+                                                    Manage & Chat
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; padding: 3rem; color: #9CA3AF;">No complaints found.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!in_array($role_filter, ['all', 'user', 'helper', 'complaints'])): ?>
                 <div class="content-card"
                     style="padding: 4rem 2rem; text-align: center; border: 1px dashed #D1D5DB; background: #F9FAFB;">
                     <span class="material-icons"
@@ -1083,6 +1289,107 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
             });
         </script>
     </main>
+    <!-- Admin Complaint Chat Overlay -->
+    <div id="adminComplaintChatOverlay" class="chat-modal-overlay">
+        <div class="chat-header">
+            <h4><span class="material-icons">support_agent</span> Chat with <span id="chatReporterName"></span></h4>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button onclick="resolveComplaint()" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Resolve</button>
+                <span class="material-icons close-chat" onclick="closeAdminComplaintChat()">close</span>
+            </div>
+        </div>
+        <div id="adminComplaintMessages" class="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="adminComplaintInput" placeholder="Reply to user...">
+            <button class="chat-send-btn" onclick="sendAdminComplaintMessage()">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const currentUserId = <?php echo $_SESSION['user_id']; ?>;
+        let activeComplaintId = null;
+        let adminComplaintPolling = null;
+
+        function openAdminComplaintChat(complaintId, reporterName) {
+            activeComplaintId = complaintId;
+            document.getElementById('chatReporterName').textContent = reporterName;
+            document.getElementById('adminComplaintChatOverlay').style.display = 'flex';
+            fetchAdminComplaintMessages();
+            if (adminComplaintPolling) clearInterval(adminComplaintPolling);
+            adminComplaintPolling = setInterval(fetchAdminComplaintMessages, 3000);
+        }
+
+        function closeAdminComplaintChat() {
+            document.getElementById('adminComplaintChatOverlay').style.display = 'none';
+            if (adminComplaintPolling) clearInterval(adminComplaintPolling);
+        }
+
+        function fetchAdminComplaintMessages() {
+            if (!activeComplaintId) return;
+            fetch(`api/complaint_action.php?action=fetch_messages&complaint_id=${activeComplaintId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('adminComplaintMessages');
+                        container.innerHTML = '';
+                        data.messages.forEach(msg => {
+                            const div = document.createElement('div');
+                            const isSent = msg.sender_role === 'admin';
+                            div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
+                            
+                            div.innerHTML = `
+                                <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 2px;">${isSent ? 'Me (Admin)' : msg.sender_name}</div>
+                                ${msg.message}
+                                <span class="message-time">${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            `;
+                            container.appendChild(div);
+                        });
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+        }
+
+        function sendAdminComplaintMessage() {
+            const input = document.getElementById('adminComplaintInput');
+            const message = input.value.trim();
+            if (!message || !activeComplaintId) return;
+
+            const fd = new FormData();
+            fd.append('action', 'send_message');
+            fd.append('complaint_id', activeComplaintId);
+            fd.append('message', message);
+
+            input.value = '';
+            fetch('api/complaint_action.php', { method: 'POST', body: fd })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) fetchAdminComplaintMessages();
+                });
+        }
+
+        function resolveComplaint() {
+            if (!confirm('Mark this complaint as resolved?')) return;
+            const fd = new FormData();
+            fd.append('action', 'resolve');
+            fd.append('complaint_id', activeComplaintId);
+
+            fetch('api/complaint_action.php', { method: 'POST', body: fd })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        closeAdminComplaintChat();
+                        location.reload();
+                    }
+                });
+        }
+
+        document.getElementById('adminComplaintInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendAdminComplaintMessage();
+        });
+    </script>
 </body>
 
 </html>

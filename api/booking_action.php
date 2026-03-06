@@ -34,6 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payment_method = $_POST['payment_method'] ?? 'Cash';
         $num_days = isset($_POST['num_days']) ? max(1, (int) $_POST['num_days']) : 1;
         $promo_code = trim($_POST['promo_code'] ?? '');
+        $recurrence_type = $_POST['recurrence_type'] ?? 'none';
+        $is_subscription_active = ($recurrence_type !== 'none') ? 1 : 0;
 
         if (empty($service_ids) || empty($date)) {
             $_SESSION['error'] = 'Please select a service and date.';
@@ -146,10 +148,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings 
-                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, start_otp, end_otp) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, start_otp, end_otp, recurrence_type, is_subscription_active) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $end_date, $time, $location, $budget, $instructions, $status, $payment_method, $num_days, $total_amount, $promo_code, $discount_amount, $start_otp, $end_otp]);
+                $stmt->execute([
+                    $user_id,
+                    $service_id,
+                    $assigned_helper_id,
+                    $date,
+                    $end_date,
+                    $time,
+                    $location,
+                    $budget,
+                    $instructions,
+                    $status,
+                    $payment_method,
+                    $num_days,
+                    $total_amount,
+                    $promo_code,
+                    $discount_amount,
+                    $start_otp,
+                    $end_otp,
+                    $recurrence_type,
+                    $is_subscription_active
+                ]);
                 $booking_id = $pdo->lastInsertId();
                 $recent_booking_ids[] = $booking_id;
 

@@ -36,6 +36,11 @@ $notifications = $stmt->fetchAll(); // In real app, mark as read on view or dism
 $stmt = $pdo->prepare("SELECT booking_id FROM reviews WHERE reviewer_id = ?");
 $stmt->execute([$user_id]);
 $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+// Fetch user details for tracking
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user_details = $stmt->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -48,7 +53,9 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="assets/css/chat.css?v=<?php echo time(); ?>">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <style>
         .modal {
             display: none;
@@ -309,6 +316,26 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             display: flex;
             gap: 0.5rem;
         }
+
+        .chat-btn {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-btn:hover {
+            background: #e2e8f0;
+            color: #0F172A;
+        }
     </style>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
@@ -349,6 +376,9 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             </div>
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person</span> Profile
+            </div>
+            <div class="nav-item " onclick="showSection('complaints')">
+                <span class="material-icons">report_problem</span> Support & Complaints
             </div>
             <div class="nav-item cart-nav-item" onclick="openBookingModal()"
                 style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 1rem; padding-top: 1rem;">
@@ -420,6 +450,15 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 <div style="margin-top: 2rem; padding: 1.5rem; background: #f9fafb; border-radius: 8px;">
                     <h3>Welcome Back!</h3>
                     <p>Ready to book your next service? Go to the <strong>Book Service</strong> tab to find help.</p>
+                </div>
+            </div>
+
+            <!-- Complaints Section -->
+            <div id="complaints-section" class="tab-content" style="display: none;">
+                <h2 style="margin-bottom: 2rem;">Support & Complaints</h2>
+                <div class="grid" id="complaintList"
+                    style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                    <!-- Loaded via JS -->
                 </div>
             </div>
 
@@ -710,6 +749,22 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             </div>
                             <input type="hidden" name="payment_method" id="paymentMethodInput" value="Cash">
                         </div>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <label
+                                style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Recurring
+                                Booking (Helpify Plus)</label>
+                            <select name="recurrence_type" class="form-control"
+                                style="padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; width: 100%; box-sizing: border-box; color: #0F172A; background-color: #fff; appearance: auto;">
+                                <option value="none">One-time Service</option>
+                                <option value="daily">Daily Plan</option>
+                                <option value="weekly">Weekly Plan</option>
+                                <option value="monthly">Monthly Plan</option>
+                            </select>
+                            <small style="color: #64748B; font-size: 0.75rem;">Get discounts and priority assignment
+                                with
+                                recurring plans.</small>
+                        </div>
+
                         <div id="map"
                             style="border-radius: 12px; margin-top: 1rem; overflow: hidden; border: 1px solid #E2E8F0;">
                         </div>
@@ -861,46 +916,80 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                         <?php endif; ?>
                                     </div>
                                     <div class="bc-actions">
-                                        <?php if ($booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending' && $booking['status'] != 'cancelled'): ?>
-                                            <button onclick="payOnline(<?php echo $booking['id']; ?>)" class="btn btn-primary"
-                                                style="background: #10B981; border-color: #10B981; display: flex; align-items: center; gap: 4px;">
-                                                <span class="material-icons" style="font-size: 18px;">payment</span> Pay Now
+                                        <?php if ($booking['helper_id'] && in_array($booking['status'], ['accepted', 'confirmed', 'in-progress'])): ?>
+                                            <button class="chat-btn"
+                                                onclick="openChat('<?php echo $booking['id']; ?>', '<?php echo $booking['helper_id']; ?>', '<?php echo htmlspecialchars($booking['helper_name']); ?>')">
+                                                <span class="material-icons" style="font-size: 18px;">chat</span>
+                                                Chat
                                             </button>
                                         <?php endif; ?>
-                                        <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
-                                            <form action="api/booking_action.php" method="POST" style="margin: 0;"
-                                                onsubmit="return confirm('Are you sure you want to cancel this booking?');">
-                                                <input type="hidden" name="action" value="cancel">
-                                                <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                                <button type="submit" class="btn btn-outline"
-                                                    style="color: #DC2626; border-color: #DC2626;">Cancel Booking</button>
-                                            </form>
-                                        <?php elseif ($booking['status'] == 'completed'): ?>
-                                            <?php if (in_array($booking['id'], $reviewed_bookings)): ?>
-                                                <button class="btn btn-outline" disabled style="background: #f3f4f6;">Reviewed</button>
-                                            <?php else: ?>
-                                                <button class="btn btn-primary"
-                                                    onclick="openReviewModal(<?php echo $booking['id']; ?>)">Leave a Review</button>
-                                            <?php endif; ?>
+                                        <?php if (in_array($booking['status'], ['in-progress'])): ?>
+                                            <button class="chat-btn"
+                                                style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;"
+                                                onclick="startTracking('<?php echo $booking['helper_id']; ?>', '<?php echo htmlspecialchars($booking['helper_name'] ?? 'Helper'); ?>', '<?php echo $user_details['last_lat'] ?? 20.5937; ?>', '<?php echo $user_details['last_lng'] ?? 78.9629; ?>')">
+                                                <span class="material-icons" style="font-size: 18px;">my_location</span>
+                                                Track
+                                            </button>
                                         <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
+                                        <?php if ($booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending' && $booking['status'] != 'cancelled'): ?>
+                                                                    <button onclick="payOnline(<?php echo $booking['id']; ?>)" class="btn btn-primary"
+                                                                        style="background: #10B981; border-color: #10B981; display: flex; align-items: center; gap: 4px;">
+                                                                        <span class="material-icons" style="font-size: 18px;">payment</span> Pay Now
+                                                                    </button>
+                                                        <?php endif; ?>
+                                                        <?php if ($booking['payment_status'] == 'paid'): ?>
+                                                                    <a href="receipt.php?id=<?php echo $booking['id']; ?>" target="_blank" class="chat-btn"
+                                                                        style="background: #eef2ff; color: #4338ca; border-color: #c7d2fe; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                                                                        <span class="material-icons" style="font-size: 18px;">receipt_long</span> Receipt
+                                                                    </a>
+                                                        <?php endif; ?>
+                                                        <?php if (!in_array($booking['status'], ['cancelled'])): ?>
+                                                                    <button class="chat-btn" style="color: #ef4444; border-color: #fecaca;"
+                                                                        onclick="openComplaintModal('<?php echo $booking['id']; ?>', '<?php echo htmlspecialchars($booking['service_name']); ?>')">
+                                                                        <span class="material-icons" style="font-size: 18px;">report_problem</span>
+                                                                        Report
+                                                                    </button>
+                                                        <?php endif; ?>
+                                                        <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
+                                                                    <form action="api/booking_action.php" method="POST" style="margin: 0;"
+                                                                        onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+                                                                        <input type="hidden" name="action" value="cancel">
+                                                                        <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
+                                                                        <button type="submit" class="btn btn-outline"
+                                                                            style="color: #DC2626; border-color: #DC2626;">Cancel Booking</button>
+                                                                    </form>
+                                                        <?php elseif ($booking['status'] == 'completed'): ?>
+                                                                    <?php if (in_array($booking['id'], $reviewed_bookings)): ?>
+                                                                                <button class="btn btn-outline" disabled style="background: #f3f4f6;">Reviewed</button>
+                                                                    <?php else: ?>
+                                                                                <button class="btn btn-primary"
+                                                                                    onclick="openReviewModal(<?php echo $booking['id']; ?>)">Leave a Review</button>
+                                                                    <?php endif; ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                <?php endforeach; ?>
                     <?php else: ?>
-                        <div
-                            style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed var(--border-color);">
-                            <span class="material-icons"
-                                style="font-size: 48px; color: #d1d5db; margin-bottom: 1rem;">event_busy</span>
-                            <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">No bookings yet</h4>
-                            <p style="color: var(--text-light); font-size: 0.9rem;">You haven't requested any services yet.
-                                Head over to the Book tab!</p>
-                        </div>
+                                <div
+                                    style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px dashed var(--border-color);">
+                                    <span class="material-icons"
+                                        style="font-size: 48px; color: #d1d5db; margin-bottom: 1rem;">event_busy</span>
+                                    <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">No bookings yet</h4>
+                                    <p style="color: var(--text-light); font-size: 0.9rem;">You haven't requested any services yet.
+                                        Head over to the Book tab!</p>
+                                </div>
                     <?php endif; ?>
                 </div>
             </div>
 
-
+            <!-- Complaints Section -->
+            <div id="complaints-section" class="tab-content" style="display: none;">
+                <h3 style="margin-bottom: 2rem;">My Complaints & Support</h3>
+                <div id="complaintList" class="booking-list">
+                    <!-- Complaints will be loaded here by JS -->
+                </div>
+            </div>
 
             <!-- Review Modal -->
             <div id="reviewModal" class="modal">
@@ -957,10 +1046,10 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                             <div
                                 style="width: 100px; height: 100px; background: #f3f4f6; border-radius: 50%; overflow: hidden; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;">
                                 <?php if (!empty($user_details['profile_photo'])): ?>
-                                    <img src="<?php echo htmlspecialchars($user_details['profile_photo']); ?>"
-                                        style="width: 100%; height: 100%; object-fit: cover;">
+                                            <img src="<?php echo htmlspecialchars($user_details['profile_photo']); ?>"
+                                                style="width: 100%; height: 100%; object-fit: cover;">
                                 <?php else: ?>
-                                    <span class="material-icons" style="font-size: 48px; color: #9ca3af;">person</span>
+                                            <span class="material-icons" style="font-size: 48px; color: #9ca3af;">person</span>
                                 <?php endif; ?>
                             </div>
                             <label for="c_photo_upload"
@@ -1052,10 +1141,15 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             const el = document.getElementById(targetId);
             if (el) el.style.display = 'block';
 
-            const indexMap = { 'dashboard': 0, 'book': 1, 'history': 2, 'profile': 3 };
-            const navItems = document.querySelectorAll('.nav-item');
-            if (navItems[indexMap[sectionId]]) {
-                navItems[indexMap[sectionId]].classList.add('active');
+            // Find the nav item by text/icon if index isn't reliable
+            document.querySelectorAll('.nav-item').forEach(item => {
+                if (item.textContent.toLowerCase().includes(sectionId.toLowerCase())) {
+                    item.classList.add('active');
+                }
+            });
+
+            if (sectionId === 'complaints') {
+                loadComplaints();
             }
         }
 
@@ -1598,6 +1692,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             if (event.target == applicantsModal) closeApplicantsModal();
             if (event.target == reviewModal) closeReviewModal();
             if (event.target == profileModal) closeProfileModal();
+            if (event.target == complaintModal) closeComplaintModal();
         }
 
         // Profile Map & Location
@@ -1852,6 +1947,270 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
     </script>
 
+    <!-- Chat Modal Overlay -->
+    <div id="chatOverlay" class="chat-modal-overlay">
+        <div class="chat-header">
+            <h4 id="chatHeaderTitle"><span class="material-icons">chat</span> Chat with <span
+                    id="chatReceiverName">Helper</span></h4>
+            <span class="material-icons close-chat" onclick="closeChat()">close</span>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+            <!-- Messages will be loaded here -->
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Type a message...">
+            <button class="chat-send-btn" onclick="sendMessage()">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const currentUserId = <?php echo $_SESSION['user_id']; ?>;
+    </script>
+    <script src="assets/js/chat.js?v=<?php echo time(); ?>"></script>
+
+    <!-- Complaint Modal -->
+    <div id="complaintModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+            <span class="close" onclick="closeComplaintModal()">&times;</span>
+            <h2 style="margin-bottom: 1rem;"><span class="material-icons"
+                    style="vertical-align: middle; color: #ef4444;">report_problem</span> Report an Issue</h2>
+            <p id="complaintBookingInfo" style="margin-bottom: 1.5rem; color: #64748B;"></p>
+            <form id="complaintForm">
+                <input type="hidden" id="complaintBookingId" name="booking_id">
+                <div class="input-group">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Explain the problem</label>
+                    <textarea id="complaintDescription" name="description" class="form-control" rows="4"
+                        placeholder="Describe what went wrong in detail..." required style="resize: none;"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; padding: 1rem; background: #ef4444; border: none;">Submit Report</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Complaint Chat Overlay (Floating) -->
+    <div id="complaintChatOverlay" class="chat-modal-overlay">
+        <div class="chat-header" style="background: #ef4444;">
+            <h4><span class="material-icons">support_agent</span> Admin Support</h4>
+            <span class="material-icons close-chat" onclick="closeComplaintChat()">close</span>
+        </div>
+        <div id="complaintMessages" class="chat-messages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="complaintChatInput" placeholder="Type a message...">
+            <button class="chat-send-btn" style="background: #ef4444;" onclick="sendComplaintMessage()">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Tracking Modal -->
+    <div id="trackingModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
+            <span class="close" onclick="closeTrackingModal()">&times;</span>
+            <h2 style="margin-bottom: 1rem;">Track Helper - <span id="trackHelperName"></span></h2>
+            <div id="trackingMap" style="height: 400px; width: 100%; border-radius: 12px; border: 1px solid #e2e8f0;">
+            </div>
+            <p
+                style="margin-top: 1rem; color: #64748B; font-size: 0.9rem; display: flex; align-items: center; gap: 4px;">
+                <span class="material-icons" style="font-size: 16px;">update</span>
+                Last updated: <span id="trackLastUpdated">Just now</span>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Tracking Logic
+        let trackingMap;
+        let helperMarker;
+        let userMarker;
+        let trackingInterval;
+
+        function startTracking(helperId, helperName, userLat, userLng) {
+            document.getElementById('trackHelperName').textContent = helperName;
+            document.getElementById('trackingModal').style.display = 'block';
+
+            setTimeout(() => {
+                if (!trackingMap) {
+                    trackingMap = L.map('trackingMap').setView([userLat, userLng], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap'
+                    }).addTo(trackingMap);
+                    userMarker = L.marker([userLat, userLng]).addTo(trackingMap).bindPopup("Service Location").openPopup();
+                } else {
+                    trackingMap.setView([userLat, userLng], 13);
+                    userMarker.setLatLng([userLat, userLng]);
+                    trackingMap.invalidateSize();
+                }
+
+                updateHelperPos(helperId);
+                if (trackingInterval) clearInterval(trackingInterval);
+                trackingInterval = setInterval(() => updateHelperPos(helperId), 15000);
+            }, 200);
+        }
+
+        function updateHelperPos(helperId) {
+            fetch(`api/get_helper_location.php?helper_id=${helperId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const {
+                            last_lat,
+                            last_lng
+                        } = data.location;
+                        if (!helperMarker) {
+                            helperMarker = L.circleMarker([last_lat, last_lng], {
+                                radius: 10,
+                                fillColor: "#2563EB",
+                                color: "#fff",
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            }).addTo(trackingMap).bindPopup("Helper is here");
+                        } else {
+                            helperMarker.setLatLng([last_lat, last_lng]);
+                        }
+                        document.getElementById('trackLastUpdated').textContent = new Date().toLocaleTimeString();
+                    }
+                });
+        }
+
+        function closeTrackingModal() {
+            document.getElementById('trackingModal').style.display = 'none';
+            if (trackingInterval) clearInterval(trackingInterval);
+        }
+
+        // Complaint Logic
+        function openComplaintModal(bookingId, serviceName) {
+            document.getElementById('complaintBookingId').value = bookingId;
+            document.getElementById('complaintBookingInfo').textContent = "Reporting issue for: " + serviceName + " (#" + bookingId + ")";
+            document.getElementById('complaintModal').style.display = 'block';
+        }
+
+        function closeComplaintModal() {
+            document.getElementById('complaintModal').style.display = 'none';
+        }
+
+        document.getElementById('complaintForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('action', 'submit');
+
+            fetch('api/complaint_action.php', {
+                method: 'POST',
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        closeComplaintModal();
+                        loadComplaints();
+                    }
+                });
+        });
+
+        function loadComplaints() {
+            fetch('api/complaint_action.php?action=fetch')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('complaintList');
+                        if (!container) return;
+                        container.innerHTML = '';
+                        if (data.complaints.length === 0) {
+                            container.innerHTML = '<div style="text-align: center; padding: 3rem; color: #94a3b8; width: 100%;"><span class="material-icons" style="font-size: 48px;">check_circle</span><p>No active complaints.</p></div>';
+                            return;
+                        }
+
+                        data.complaints.forEach(c => {
+                            const card = document.createElement('div');
+                            card.className = 'stat-card';
+                            card.style.cursor = 'pointer';
+                            card.style.borderLeft = '4px solid ' + (c.status === 'resolved' ? '#10B981' : (c.status === 'pending' ? '#F59E0B' : '#94a3b8'));
+                            card.onclick = () => openComplaintChat(c.id);
+
+                            card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <h4 style="margin: 0; color: #1e293b;">${c.service_name || 'General Support'}</h4>
+                                    <p style="font-size: 0.9rem; color: #64748B; margin: 0.5rem 0;">${c.description.substring(0, 50)}${c.description.length > 50 ? '...' : ''}</p>
+                                    <small style="color: #94a3b8;">${new Date(c.created_at).toLocaleDateString()}</small>
+                                </div>
+                                <span class="status-badge" style="font-size: 0.7rem; background: #f1f5f9; color: #475569;">${c.status.toUpperCase()}</span>
+                            </div>
+                        `;
+                            container.appendChild(card);
+                        });
+                    }
+                });
+        }
+
+        let currentComplaintId = null;
+        let complaintPolling = null;
+
+        function openComplaintChat(complaintId) {
+            currentComplaintId = complaintId;
+            document.getElementById('complaintChatOverlay').style.display = 'flex';
+            fetchComplaintMessages();
+            if (complaintPolling) clearInterval(complaintPolling);
+            complaintPolling = setInterval(fetchComplaintMessages, 3000);
+        }
+
+        function closeComplaintChat() {
+            document.getElementById('complaintChatOverlay').style.display = 'none';
+            if (complaintPolling) clearInterval(complaintPolling);
+        }
+
+        function fetchComplaintMessages() {
+            if (!currentComplaintId) return;
+            fetch(`api/complaint_action.php?action=fetch_messages&complaint_id=${currentComplaintId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const container = document.getElementById('complaintMessages');
+                        container.innerHTML = '';
+                        data.messages.forEach(msg => {
+                            const div = document.createElement('div');
+                            const isSent = msg.sender_id == currentUserId;
+                            div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
+                            if (!isSent) div.style.background = '#f1f5f9';
+
+                            div.innerHTML = `
+                            <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; color: ${isSent ? '#fff' : '#475569'}">${msg.sender_role === 'admin' ? 'Support' : msg.sender_name}</div>
+                            ${msg.message}
+                            <span class="message-time" style="color: ${isSent ? 'rgba(255,255,255,0.7)' : '#94a3b8'}">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        `;
+                            container.appendChild(div);
+                        });
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+        }
+
+        function sendComplaintMessage() {
+            const input = document.getElementById('complaintChatInput');
+            const message = input.value.trim();
+            if (!message || !currentComplaintId) return;
+
+            const fd = new FormData();
+            fd.append('action', 'send_message');
+            fd.append('complaint_id', currentComplaintId);
+            fd.append('message', message);
+
+            input.value = '';
+            fetch('api/complaint_action.php', { method: 'POST', body: fd })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) fetchComplaintMessages();
+                });
+        }
+
+        document.getElementById('complaintChatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendComplaintMessage();
+        });
+    </script>
 </body>
 
 </html>
