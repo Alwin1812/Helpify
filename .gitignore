@@ -3,14 +3,37 @@
 *.txt
 *.patch
 *.err
+*.sql
+*.json
+*.png
+!assets/**/*.png
 tmp_*
 /assets/uploads/*
 !/assets/uploads/.gitkeep
- PHPMailer-master/
- git_log_clean.txt
- push_out.txt
- stat.txt
- schema_output.json
- .antigravity*
- !.antigravityignore
- includes/google_config.php
+PHPMailer-master/
+git_log_clean.txt
+push_out.txt
+stat.txt
+schema_output.json
+.antigravity*
+!.antigravityignore
+includes/google_config.php
+api/config_razorpay.php
+# Exclude PHP scripts that are likely one-off migrations or debug scripts
+check_schema*.php
+get_schema.php
+probe_db.php
+run_sql.php
+run_alter.php
+seed_admin.php
+update_*.php
+migration_*.php
+delete_helpers.php
+apply_contact_migration.php
+add_razorpay_cols.php
+debug_services.php
+list_services.php
+search_img.*
+fetch_ro_images.php
+get_wiki_images.php
+fix_enum.php

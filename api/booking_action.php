@@ -26,11 +26,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $date = $_POST['date'];
+        $end_date = $_POST['end_date'] ?? null;
         $time = $_POST['time'] ?? null;
         $location = $_POST['location'] ?? null;
         $budget = $_POST['budget'] ?? null;
         $instructions = $_POST['instructions'] ?? null;
         $payment_method = $_POST['payment_method'] ?? 'Cash';
+        $num_days = isset($_POST['num_days']) ? max(1, (int) $_POST['num_days']) : 1;
+        $promo_code = trim($_POST['promo_code'] ?? '');
 
         if (empty($service_ids) || empty($date)) {
             $_SESSION['error'] = 'Please select a service and date.';
@@ -49,11 +52,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $booked_count = 0;
             $recent_booking_ids = [];
 
+            // Validate promo at backend securely
+            $promoDetails = null;
+            if (!empty($promo_code)) {
+                $stmt = $pdo->prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1");
+                $stmt->execute([$promo_code]);
+                $promoDetails = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($promoDetails && $promoDetails['valid_until'] && strtotime($promoDetails['valid_until']) < time()) {
+                    $promoDetails = null; // Expired
+                }
+                if ($promoDetails && $promoDetails['max_uses'] && $promoDetails['current_uses'] >= $promoDetails['max_uses']) {
+                    $promoDetails = null; // Max uses reached
+                }
+            }
+
             foreach ($service_ids as $service_id) {
-                // 1. Get Service Name
-                $stmt = $pdo->prepare("SELECT name FROM services WHERE id = ?");
+                // 1. Get Service Name & Price
+                $stmt = $pdo->prepare("SELECT name, base_price FROM services WHERE id = ?");
                 $stmt->execute([$service_id]);
-                $service_name = $stmt->fetchColumn();
+                $serviceData = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$serviceData)
+                    continue;
+                $service_name = $serviceData['name'];
+                $base_price = (float) $serviceData['base_price'];
+                $total_amount = $base_price * $num_days;
+                $discount_amount = 0.00;
+
+                if ($promoDetails && $total_amount >= $promoDetails['min_order_amount']) {
+                    if ($promoDetails['discount_type'] === 'percentage') {
+                        $discount_amount = ($total_amount * $promoDetails['discount_value']) / 100;
+                        if ($promoDetails['max_discount_amount']) {
+                            $discount_amount = min($discount_amount, $promoDetails['max_discount_amount']);
+                        }
+                    } else {
+                        $discount_amount = $promoDetails['discount_value'];
+                    }
+                    $total_amount -= $discount_amount;
+                    if ($total_amount < 0)
+                        $total_amount = 0;
+                }
 
                 // 2. Find Matching Helpers (Keyword matching for assignment)
                 $keywords = [];
@@ -103,12 +141,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $status = 'confirmed';
                 }
 
+                $start_otp = sprintf("%04d", rand(1000, 9999));
+                $end_otp = sprintf("%04d", rand(1000, 9999));
+
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings 
-                    (user_id, service_id, helper_id, date, time, location, budget, special_instructions, status, payment_method) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, start_otp, end_otp) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $time, $location, $budget, $instructions, $status, $payment_method]);
+                $stmt->execute([$user_id, $service_id, $assigned_helper_id, $date, $end_date, $time, $location, $budget, $instructions, $status, $payment_method, $num_days, $total_amount, $promo_code, $discount_amount, $start_otp, $end_otp]);
                 $booking_id = $pdo->lastInsertId();
                 $recent_booking_ids[] = $booking_id;
 
@@ -117,6 +158,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $booked_count++;
+            }
+
+            if ($promoDetails && $booked_count > 0) {
+                // Increment promo use count once per batch booking
+                $pdo->prepare("UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = ?")->execute([$promoDetails['id']]);
             }
 
             $pdo->commit();

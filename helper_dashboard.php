@@ -78,7 +78,8 @@ $my_jobs = $stmt->fetchAll();
     <header>
         <div class="container flex justify-between items-center" style="height: 100%; width: 100%;">
             <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
-                <span style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+                <span
+                    style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
             </a>
             <nav class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
                 <span style="font-size: 0.9rem; color: var(--text-light);">
@@ -399,18 +400,36 @@ $my_jobs = $stmt->fetchAll();
                                             </span>
                                         </div>
                                         <?php if ($job['status'] === 'confirmed'): ?>
-                                            <form action="api/booking_action.php" method="POST">
-                                                <input type="hidden" name="action" value="complete">
+                                            <form action="api/verify_otp.php" method="POST" class="otp-verify-form">
                                                 <input type="hidden" name="booking_id" value="<?php echo $job['id']; ?>">
+                                                <input type="hidden" name="type" value="start">
+                                                <div style="margin-bottom: 8px;">
+                                                    <input type="text" name="otp" placeholder="Enter Start OTP" required
+                                                        maxlength="4"
+                                                        style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 6px; text-align: center; font-weight: 700; letter-spacing: 2px;">
+                                                </div>
                                                 <button type="submit" class="btn btn-primary"
-                                                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 6px; width: 100%;">
-                                                    Mark Done
+                                                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 6px; width: 100%; background: #2563EB;">
+                                                    Start Job
+                                                </button>
+                                            </form>
+                                        <?php elseif ($job['status'] === 'in-progress'): ?>
+                                            <form action="api/verify_otp.php" method="POST" class="otp-verify-form">
+                                                <input type="hidden" name="booking_id" value="<?php echo $job['id']; ?>">
+                                                <input type="hidden" name="type" value="end">
+                                                <div style="margin-bottom: 8px;">
+                                                    <input type="text" name="otp" placeholder="Enter End OTP" required maxlength="4"
+                                                        style="width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 6px; text-align: center; font-weight: 700; letter-spacing: 2px;">
+                                                </div>
+                                                <button type="submit" class="btn btn-primary"
+                                                    style="padding: 0.4rem 1rem; font-size: 0.85rem; border-radius: 6px; width: 100%; background: #10B981; border: none;">
+                                                    Complete Job
                                                 </button>
                                             </form>
                                         <?php elseif ($job['status'] === 'completed'): ?>
                                             <span
                                                 style="color: #10B981; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                                                <span class="material-icons" style="font-size: 16px;">task_alt</span> Paid
+                                                <span class="material-icons" style="font-size: 16px;">task_alt</span> Finished
                                             </span>
                                         <?php endif; ?>
                                     </div>
@@ -569,8 +588,8 @@ $my_jobs = $stmt->fetchAll();
             const navItems = document.querySelectorAll('.nav-item');
             if (navItems[indexMap[sectionId]]) {
                 navItems[indexMap[sectionId]].classList.add('active');
+            }
         }
- }
     </script>
 </body>
 

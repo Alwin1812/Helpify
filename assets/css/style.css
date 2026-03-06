@@ -23,6 +23,29 @@
     --transition: all 0.2s ease;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 10px;
+    border: 2px solid #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #111827;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -630,6 +653,12 @@ tr:not(:last-child) {
 .status-cancelled {
     background-color: #FEF2F2;
     color: #DC2626;
+}
+
+.status-in-progress {
+    background-color: #F0FDF4;
+    color: #16A34A;
+    border: 1px solid #BBF7D0;
 }
 
 /* SaaS Card (Job Market Items) */

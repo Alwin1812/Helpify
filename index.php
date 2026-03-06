@@ -9,8 +9,8 @@ session_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helpify - Simple Household Services</title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/home_redesign.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="assets/css/home_redesign.css?v=<?php echo time(); ?>">
     <!-- Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
@@ -155,31 +155,37 @@ session_start();
                 </div>
             </div>
 
-            <!-- Stats Section -->
-            <div class="hero-stats">
+        </div>
+    </section>
+
+    <!-- Minimal Stats Bar Section -->
+    <section class="stats-bar-section">
+        <div class="container">
+            <div class="footer-stats-bar">
                 <div class="stat-item">
-                    <span class="material-icons">star_border</span>
+                    <span class="material-icons">star_outline</span>
                     <div class="stat-text">
-                        <strong>4.8</strong>
-                        <span>Service Rating</span>
+                        <div class="stat-value">4.8</div>
+                        <div class="stat-label">Service Rating</div>
                     </div>
                 </div>
                 <div class="stat-item">
-                    <span class="material-icons">people_outline</span>
+                    <span class="material-icons">group_outline</span>
                     <div class="stat-text">
-                        <strong>12M+</strong>
-                        <span>Customers Globally</span>
+                        <div class="stat-value">12M+</div>
+                        <div class="stat-label">Customers Globally</div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <footer style="background: #111827; color: white; padding: 4rem 0; margin-top: auto;">
-        <div class="container text-center">
-            <h2 class="logo" style="margin-bottom: 1rem;">Helpify</h2>
-            <p style="color: #9CA3AF; margin-bottom: 2rem;">Connecting you with the best household helpers.</p>
-            <p style="font-size: 0.9rem; color: #4B5563;">&copy; 2025 Helpify. All rights reserved.</p>
+    <footer class="main-footer">
+        <div class="container">
+            <div class="footer-minimal-content">
+                <p class="footer-tagline">Connecting you with the best household helpers.</p>
+                <p class="footer-copyright">&copy; 2025 Helpify. All rights reserved.</p>
+            </div>
         </div>
     </footer>
     <!-- Leaflet CSS -->
@@ -578,6 +584,25 @@ session_start();
                 searchDropdown.appendChild(item);
             });
         }
+    </script>
+    <!-- FAQ Toggle Script -->
+    <script>
+        document.querySelectorAll('.faq-question').forEach(button => {
+            button.addEventListener('click', () => {
+                const faqItem = button.parentElement;
+                const faqAnswer = button.nextElementSibling;
+
+                // Toggle active class for icon animation
+                faqItem.classList.toggle('active');
+
+                // Toggle 'show' class for the answer
+                if (faqAnswer.classList.contains('show')) {
+                    faqAnswer.classList.remove('show');
+                } else {
+                    faqAnswer.classList.add('show');
+                }
+            });
+        });
     </script>
 </body>
 

@@ -588,15 +588,19 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             </div>
 
             <div id="bookingModal" class="modal">
-                <div class="modal-content">
-                    <span class="close" onclick="closeBookingModal()">&times;</span>
-                    <h2 id="bookingModalTitle">Book Service</h2>
+                <div class="modal-content" style="border-radius: 16px; padding: 2rem;">
+                    <span class="close" onclick="closeBookingModal()"
+                        style="font-size: 1.5rem; top: 1.5rem; right: 1.5rem;">&times;</span>
+                    <h2 id="bookingModalTitle"
+                        style="color: #0F172A; font-weight: 800; font-size: 1.6rem; margin-bottom: 1.5rem;">Book Service
+                    </h2>
 
                     <div id="singleServiceInfo"
-                        style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; display: none;">
-                        <div style="font-weight: 700; color: var(--primary-color); font-size: 1.1rem;"
+                        style="margin-bottom: 1.5rem; padding: 1.25rem; background: #F8FAFC; border-radius: 12px; display: none; border: 1px solid #E2E8F0;">
+                        <div style="font-weight: 700; color: #0F172A; font-size: 1.2rem; margin-bottom: 0.25rem;"
                             id="modalServiceName"></div>
-                        <div style="font-weight: 600; color: #4b5563;">Price: ₹<span id="modalServicePrice"></span>
+                        <div style="font-weight: 600; color: #475569; font-size: 0.95rem;">Price: ₹<span
+                                id="modalServicePrice"></span>
                         </div>
                     </div>
 
@@ -614,25 +618,52 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         <input type="hidden" name="service_id" id="modalServiceId">
                         <div id="cartHiddenInputs"></div>
 
-                        <div class="input-group">
-                            <label>Date</label>
-                            <input type="date" name="date" id="bookingDate" class="form-control" required
-                                min="<?php echo date('Y-m-d'); ?>" oninput="validateBookingField(this)">
-                            <div class="error-message" id="dateError">Please select a valid future date.</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="input-group">
+                                <label
+                                    style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">From
+                                    Date</label>
+                                <input type="date" name="date" id="bookingDate" class="form-control" required
+                                    min="<?php echo date('Y-m-d'); ?>"
+                                    oninput="validateBookingField(this); calculateDays()"
+                                    style="padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; width: 100%; box-sizing: border-box; color: #0F172A; font-family: inherit;">
+                                <div class="error-message" id="dateError">Please select a valid future date.</div>
+                            </div>
+                            <div class="input-group">
+                                <label
+                                    style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">To
+                                    Date</label>
+                                <input type="date" name="end_date" id="bookingEndDate" class="form-control" required
+                                    min="<?php echo date('Y-m-d'); ?>"
+                                    oninput="validateBookingField(this); calculateDays()"
+                                    style="padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; width: 100%; box-sizing: border-box; color: #0F172A; font-family: inherit;">
+                                <div class="error-message" id="endDateError">End date must be on or after start date.
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="num_days" id="numDaysInput" value="1">
+                        <div
+                            style="text-align: right; color: var(--text-light); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem;">
+                            Total Days: <span id="displayNumDays"
+                                style="font-weight: 700; color: var(--primary-color);">1</span>
                         </div>
                         <div class="input-group">
-                            <label>Time</label>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <select id="hourSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                            <label
+                                style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Time</label>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <select id="hourSelect" class="form-control"
+                                    style="margin-bottom:0; flex: 1; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; color: #0F172A; background-color: #fff; appearance: auto;">
                                     <?php for ($i = 1; $i <= 12; $i++)
                                         echo "<option value='" . str_pad($i, 2, '0', STR_PAD_LEFT) . "'>$i</option>"; ?>
                                 </select>
-                                <span style="font-weight: bold; color: #666;">:</span>
-                                <select id="minuteSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                                <span style="font-weight: bold; color: #475569;">:</span>
+                                <select id="minuteSelect" class="form-control"
+                                    style="margin-bottom:0; flex: 1; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; color: #0F172A; background-color: #fff; appearance: auto;">
                                     <?php for ($i = 0; $i < 60; $i += 5)
                                         echo "<option value='" . str_pad($i, 2, '0', STR_PAD_LEFT) . "'>" . str_pad($i, 2, '0', STR_PAD_LEFT) . "</option>"; ?>
                                 </select>
-                                <select id="ampmSelect" class="form-control" style="margin-bottom:0; flex: 1;">
+                                <select id="ampmSelect" class="form-control"
+                                    style="margin-bottom:0; flex: 1; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; color: #0F172A; background-color: #fff; appearance: auto;">
                                     <option value="AM" <?php echo date('H') < 12 ? 'selected' : ''; ?>>AM</option>
                                     <option value="PM" <?php echo date('H') >= 12 ? 'selected' : ''; ?>>PM</option>
                                 </select>
@@ -643,51 +674,81 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                         <div class="input-group">
                             <div
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <label style="margin: 0;">Location</label>
+                                <label
+                                    style="margin: 0; font-size: 0.9rem; color: #64748B; font-weight: 600;">Location</label>
                                 <button type="button" class="btn btn-outline"
-                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;"
+                                    style="padding: 0.35rem 0.6rem; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; border-radius: 6px; border: 1px solid #0F172A; color: #0F172A; font-weight: 600;"
                                     onclick="getCurrentLocation(this)">
-                                    <span class="material-icons" style="font-size: 14px;">my_location</span> Use Current
+                                    <span class="material-icons" style="font-size: 16px;">my_location</span> Use Current
                                     Location
                                 </button>
                             </div>
                             <div class="location-container">
                                 <input type="text" name="location" id="locationInput" class="form-control"
                                     placeholder="Your Address" required oninput="validateBookingField(this)"
-                                    style="padding-right: 15px;">
+                                    style="padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; width: 100%; box-sizing: border-box; color: #0F172A; margin-top: 0.25rem;">
                             </div>
                             <div class="error-message" id="locationError">Please provide a service location.</div>
                         </div>
-                        <div class="input-group">
-                            <label>Payment Method</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; cursor: pointer; text-align: center;"
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <label
+                                style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Payment
+                                Method</label>
+                            <div style="display: flex; gap: 1rem;">
+                                <div style="flex: 1; border: 1px solid #CBD5E1; border-radius: 8px; padding: 0.8rem; cursor: pointer; text-align: center; background: #F8FAFC; transition: all 0.2s;"
                                     onclick="selectPayment('Cash', this)" id="payCash" class="pay-option active">
                                     <span class="material-icons"
-                                        style="font-size: 20px; vertical-align: middle;">payments</span>
-                                    <div style="font-size: 0.75rem;">Cash After</div>
+                                        style="font-size: 24px; vertical-align: middle; color: #334155; margin-bottom: 0.3rem; display: block;">payments</span>
+                                    <div style="font-size: 0.85rem; font-weight: 500; color: #334155;">Cash After</div>
                                 </div>
-                                <div style="flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; cursor: pointer; text-align: center;"
+                                <div style="flex: 1; border: 1px solid #CBD5E1; border-radius: 8px; padding: 0.8rem; cursor: pointer; text-align: center; background: #F8FAFC; transition: all 0.2s;"
                                     onclick="selectPayment('Online', this)" id="payOnline" class="pay-option">
                                     <span class="material-icons"
-                                        style="font-size: 20px; vertical-align: middle;">account_balance_wallet</span>
-                                    <div style="font-size: 0.75rem;">Online Pay</div>
+                                        style="font-size: 24px; vertical-align: middle; color: #334155; margin-bottom: 0.3rem; display: block;">account_balance_wallet</span>
+                                    <div style="font-size: 0.85rem; font-weight: 500; color: #334155;">Online Pay</div>
                                 </div>
                             </div>
                             <input type="hidden" name="payment_method" id="paymentMethodInput" value="Cash">
                         </div>
-                        <div id="map"></div>
+                        <div id="map"
+                            style="border-radius: 12px; margin-top: 1rem; overflow: hidden; border: 1px solid #E2E8F0;">
+                        </div>
 
+                        <div class="input-group" style="margin-top: 1.5rem;">
+                            <label
+                                style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Have
+                                a Promo Code?</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="promoCodeInput" class="form-control"
+                                    placeholder="Enter code (e.g., WELCOME50)"
+                                    style="padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; flex: 1; box-sizing: border-box; color: #0F172A; text-transform: uppercase;">
+                                <button type="button" class="btn btn-outline" onclick="applyPromoCode()"
+                                    style="padding: 0 1.5rem; border-radius: 8px; font-weight: 600; border-color: #0F172A; color: #0F172A;">Apply</button>
+                            </div>
+                            <div id="promoMessage" style="font-size: 0.85rem; margin-top: 0.5rem; display: none;"></div>
+                            <input type="hidden" name="promo_code" id="appliedPromoCode" value="">
+                        </div>
+
+                        <div
+                            style="background: #F8FAFC; padding: 1.5rem; border-radius: 12px; margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid #E2E8F0;">
+                            <span style="font-weight: 600; font-size: 1.1rem; color: #475569;">Total Amount to
+                                Pay:</span>
+                            <span style="font-weight: 800; font-size: 1.8rem; color: var(--primary-color);">₹<span
+                                    id="grandTotalDisplay">0.00</span></span>
+                        </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 1rem; margin-top: 1.5rem;">
                             <button type="button" class="btn btn-outline" id="modalAddToCartBtn"
-                                style="padding: 0.8rem;" onclick="addCurrentToCart()">
+                                style="padding: 1rem; border-radius: 8px; font-weight: 600; font-size: 1rem; border-color: #0F172A; color: #0F172A;"
+                                onclick="addCurrentToCart()">
                                 <span class="material-icons"
-                                    style="font-size: 18px; vertical-align: middle;">add_shopping_cart</span> Add to
+                                    style="font-size: 20px; vertical-align: middle; margin-right: 4px;">add_shopping_cart</span>
+                                Add to
                                 Cart
                             </button>
                             <button type="submit" class="btn btn-primary" id="modalSubmitBtn"
-                                style="padding: 0.8rem;">Confirm Booking</button>
+                                style="padding: 1rem; border-radius: 8px; font-weight: 600; font-size: 1rem; background: #0F172A;">Confirm
+                                Booking</button>
                         </div>
                     </form>
                 </div>
@@ -735,7 +796,8 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                             </div>
                                             <div style="text-align: right;">
                                                 <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Payment:
-                                                    <?php echo $booking['payment_method']; ?></div>
+                                                    <?php echo $booking['payment_method']; ?>
+                                                </div>
                                                 <?php if ($booking['payment_status'] == 'paid'): ?>
                                                     <span class="payment-status-badge ps-paid">Paid</span>
                                                 <?php else: ?>
@@ -767,20 +829,43 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                                 <div class="bc-footer">
                                     <div>
                                         <?php if ($booking['status'] == 'confirmed'): ?>
-                                            <span style="font-size: 0.85rem; color: var(--primary-color); font-weight: 600;">
-                                                <span class="material-icons"
-                                                    style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to
-                                                message? <a href="#"
-                                                    onclick="fetchAndShowHelperProfile('<?php echo $booking['helper_id']; ?>'); return false;"
-                                                    style="color: var(--primary-color); text-decoration: underline; cursor: pointer;">View
-                                                    details.</a>
-                                            </span>
+                                            <div
+                                                style="background: #EFF6FF; border: 1px dashed #2563EB; padding: 10px; border-radius: 8px; display: inline-block; margin-top: 5px;">
+                                                <span
+                                                    style="font-size: 0.8rem; color: #1E40AF; display: block; font-weight: 700;">JOB
+                                                    START OTP</span>
+                                                <span
+                                                    style="font-size: 1.2rem; color: #2563EB; font-weight: 900; letter-spacing: 2px;"><?php echo $booking['start_otp']; ?></span>
+                                            </div>
+                                        <?php elseif ($booking['status'] == 'in-progress'): ?>
+                                            <div
+                                                style="background: #F0FDF4; border: 1px dashed #10B981; padding: 10px; border-radius: 8px; display: inline-block; margin-top: 5px;">
+                                                <span
+                                                    style="font-size: 0.8rem; color: #065F46; display: block; font-weight: 700;">COMPLETION
+                                                    OTP</span>
+                                                <span
+                                                    style="font-size: 1.2rem; color: #10B981; font-weight: 900; letter-spacing: 2px;"><?php echo $booking['end_otp']; ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if ($booking['status'] == 'confirmed' || $booking['status'] == 'in-progress'): ?>
+                                            <div style="margin-top: 8px;">
+                                                <span style="font-size: 0.85rem; color: var(--primary-color); font-weight: 600;">
+                                                    <span class="material-icons"
+                                                        style="font-size: 14px; vertical-align: text-bottom;">chat</span> Need to
+                                                    message? <a href="#"
+                                                        onclick="fetchAndShowHelperProfile('<?php echo $booking['helper_id']; ?>'); return false;"
+                                                        style="color: var(--primary-color); text-decoration: underline; cursor: pointer;">View
+                                                        details.</a>
+                                                </span>
+                                            </div>
                                         <?php endif; ?>
                                     </div>
                                     <div class="bc-actions">
-                                        <?php if ($booking['status'] == 'completed' && $booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending'): ?>
+                                        <?php if ($booking['payment_method'] == 'Online' && $booking['payment_status'] == 'pending' && $booking['status'] != 'cancelled'): ?>
                                             <button onclick="payOnline(<?php echo $booking['id']; ?>)" class="btn btn-primary"
-                                                style="background: #10B981; border-color: #10B981;">Pay Now</button>
+                                                style="background: #10B981; border-color: #10B981; display: flex; align-items: center; gap: 4px;">
+                                                <span class="material-icons" style="font-size: 18px;">payment</span> Pay Now
+                                            </button>
                                         <?php endif; ?>
                                         <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
                                             <form action="api/booking_action.php" method="POST" style="margin: 0;"
@@ -1028,6 +1113,120 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         let cart = [];
+        let currentModalBasePrice = 0;
+        let cartBaseTotal = 0;
+        let activePromo = null;
+
+        async function applyPromoCode() {
+            const codeInput = document.getElementById('promoCodeInput').value.trim();
+            const msgEl = document.getElementById('promoMessage');
+
+            if (!codeInput) {
+                activePromo = null;
+                msgEl.style.display = 'block';
+                msgEl.style.color = '#EF4444';
+                msgEl.innerText = "Please enter a code first.";
+                document.getElementById('appliedPromoCode').value = '';
+                updateBookingTotal();
+                return;
+            }
+
+            try {
+                const response = await fetch('api/validate_promo.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: codeInput })
+                });
+                const res = await response.json();
+
+                if (res.success) {
+                    activePromo = res;
+                    document.getElementById('appliedPromoCode').value = codeInput;
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#10B981';
+                    msgEl.innerText = "Code applied successfully!";
+                    updateBookingTotal();
+                } else {
+                    activePromo = null;
+                    document.getElementById('appliedPromoCode').value = '';
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#EF4444';
+                    msgEl.innerText = res.message;
+                    updateBookingTotal();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function updateBookingTotal() {
+            let days = parseInt(document.getElementById('numDaysInput').value) || 1;
+            if (days < 1) days = 1;
+
+            let finalTotal = 0;
+            if (document.getElementById('modalServiceId').value) {
+                finalTotal = currentModalBasePrice * days;
+                document.getElementById('modalServicePrice').innerText = finalTotal.toFixed(2);
+            } else {
+                finalTotal = cartBaseTotal * days;
+                document.getElementById('cartTotalDisplay').innerText = finalTotal.toFixed(2);
+            }
+
+            // Apply Promo if present
+            if (activePromo && finalTotal >= activePromo.min_order_amount) {
+                let discount = 0;
+                if (activePromo.discount_type === 'percentage') {
+                    discount = (finalTotal * activePromo.discount_value) / 100;
+                    if (activePromo.max_discount_amount) {
+                        discount = Math.min(discount, activePromo.max_discount_amount);
+                    }
+                } else {
+                    discount = activePromo.discount_value;
+                }
+
+                finalTotal -= discount;
+                if (finalTotal < 0) finalTotal = 0;
+            }
+
+            const grandTotalEl = document.getElementById('grandTotalDisplay');
+            if (grandTotalEl) grandTotalEl.innerText = finalTotal.toFixed(2);
+        }
+
+        function calculateDays() {
+            const start = document.getElementById('bookingDate').value;
+            const end = document.getElementById('bookingEndDate').value;
+            const endDateInput = document.getElementById('bookingEndDate');
+            const errorMsg = document.getElementById('endDateError');
+
+            let days = 1;
+            if (start && end) {
+                const sDate = new Date(start);
+                const eDate = new Date(end);
+
+                if (eDate < sDate) {
+                    endDateInput.classList.add('invalid');
+                    if (errorMsg) {
+                        errorMsg.style.display = 'block';
+                        errorMsg.innerText = "End date must be on or after start date.";
+                    }
+                    days = 1;
+                } else {
+                    endDateInput.classList.remove('invalid');
+                    if (errorMsg) errorMsg.style.display = 'none';
+
+                    const timeDiff = eDate.getTime() - sDate.getTime();
+                    days = Math.floor(timeDiff / (1000 * 3600 * 24)) + 1;
+                }
+            } else if (start && !end) {
+                endDateInput.min = start;
+            }
+
+            document.getElementById('numDaysInput').value = days;
+            const displayDays = document.getElementById('displayNumDays');
+            if (displayDays) displayDays.innerText = days;
+
+            updateBookingTotal();
+        }
 
         function openBookingModal(id = null, name = null, price = null) {
             const singleInfo = document.getElementById('singleServiceInfo');
@@ -1036,6 +1235,10 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             const addToCartBtn = document.getElementById('modalAddToCartBtn');
             const title = document.getElementById('bookingModalTitle');
             const submitBtn = document.getElementById('modalSubmitBtn');
+
+            document.getElementById('bookingDate').value = '';
+            document.getElementById('bookingEndDate').value = '';
+            calculateDays();
 
             if (id) {
                 // Single Service Mode
@@ -1047,8 +1250,12 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 submitBtn.innerText = "Confirm Booking";
 
                 document.getElementById('modalServiceName').innerText = name;
-                document.getElementById('modalServicePrice').innerText = price;
+                currentModalBasePrice = parseFloat(price) || 0;
+                document.getElementById('modalServicePrice').innerText = currentModalBasePrice.toFixed(2);
                 document.getElementById('modalServiceId').value = id;
+                const daysInput = document.getElementById('numDaysInput');
+                if (daysInput) daysInput.value = 1;
+                updateBookingTotal();
             } else {
                 // Cart Checkout Mode
                 title.innerText = "Cart Checkout";
@@ -1058,6 +1265,8 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                 addToCartBtn.style.display = 'none';
                 submitBtn.innerText = "Checkout All Items";
                 document.getElementById('modalServiceId').value = '';
+                const daysInput = document.getElementById('numDaysInput');
+                if (daysInput) daysInput.value = 1;
                 updateCartUI();
             }
 
@@ -1068,7 +1277,7 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
         function addCurrentToCart() {
             const id = document.getElementById('modalServiceId').value;
             const name = document.getElementById('modalServiceName').innerText;
-            const price = document.getElementById('modalServicePrice').innerText;
+            const price = currentModalBasePrice;
 
             if (id) {
                 cart.push({ id: id, name: name, price: parseFloat(price) });
@@ -1122,7 +1331,8 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
             });
 
             container.innerHTML = html;
-            totalDisplay.innerText = total;
+            cartBaseTotal = total;
+            updateBookingTotal();
         }
 
         function selectPayment(method, element) {
@@ -1353,16 +1563,14 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     • ${app.completed_jobs_count || 0} Jobs Done
                 </div>
                 
-                ${app.phone_number ? `
                 <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1.5rem;">
-                    <a href="tel:${app.phone_number}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                    <a href="tel:${app.phone_number || ''}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
                         <span class="material-icons" style="font-size: 18px;">phone</span> Call
                     </a>
-                    <a href="https://wa.me/91${app.phone_number}" target="_blank" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-color: #25D366; color: #25D366; display: flex; align-items: center; gap: 4px;">
+                    <a href="https://wa.me/91${app.phone_number || ''}" target="_blank" class="btn btn-outline" style="padding: 0.5rem 1rem; font-size: 0.85rem; border-color: #25D366; color: #25D366; display: flex; align-items: center; gap: 4px;">
                         <span class="material-icons" style="font-size: 18px;">chat</span> WhatsApp
                     </a>
                 </div>
-                ` : ''}
 
                 <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; text-align: left; margin-bottom: 1rem; border: 1px solid #f3f4f6;">
                     <h4 style="margin: 0 0 0.5rem; color: #374151; font-size: 0.9rem;">About Helper</h4>

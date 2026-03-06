@@ -1,0 +1,7 @@
+<?php
+// Razorpay API Configuration - TEMPLATE
+// Rename this to config_razorpay.php and fill in your keys
+
+$razorpay_key_id = 'YOUR_RAZORPAY_KEY_ID';
+$razorpay_key_secret = 'YOUR_RAZORPAY_KEY_SECRET';
+?>

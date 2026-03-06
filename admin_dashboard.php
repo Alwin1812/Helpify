@@ -53,6 +53,51 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
     $stmt->execute($params);
     $helpers = $stmt->fetchAll();
 }
+
+// --- Analytics Data (Fetch only for overview or specific analytics role) ---
+$revenue_stats = [];
+$service_usage_stats = [];
+$booking_status_stats = [];
+$total_platform_revenue = 0;
+
+if ($role_filter === 'all' || $role_filter === 'analytics') {
+    // 1. Monthly Revenue (Last 6 months)
+    $stmt = $pdo->query("
+        SELECT 
+            DATE_FORMAT(created_at, '%b %Y') as month_label,
+            SUM(total_amount) as monthly_revenue
+        FROM bookings
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        GROUP BY month_label
+        ORDER BY MIN(created_at) ASC
+    ");
+    $revenue_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 2. Services Popularity (By booking count)
+    $stmt = $pdo->query("
+        SELECT 
+            s.name as service_name,
+            COUNT(b.id) as booking_count,
+            SUM(b.total_amount) as total_revenue
+        FROM bookings b
+        JOIN services s ON b.service_id = s.id
+        GROUP BY s.id
+        ORDER BY booking_count DESC
+        LIMIT 5
+    ");
+    $service_usage_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 3. Booking Status Distribution
+    $stmt = $pdo->query("
+        SELECT status, COUNT(*) as count 
+        FROM bookings 
+        GROUP BY status
+    ");
+    $booking_status_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // 4. Total Platform Revenue
+    $total_platform_revenue = $pdo->query("SELECT SUM(total_amount) FROM bookings WHERE status != 'cancelled'")->fetchColumn() ?: 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,6 +111,7 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --sidebar-width: 260px;
@@ -350,6 +396,10 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                 class="nav-link <?php echo $role_filter === 'all' ? 'active' : ''; ?>">
                 <span class="material-icons">dashboard</span> Dashboard Overview
             </a>
+            <a href="admin_dashboard.php?role=analytics"
+                class="nav-link <?php echo $role_filter === 'analytics' ? 'active' : ''; ?>">
+                <span class="material-icons">bar_chart</span> Financial Analytics
+            </a>
 
             <div class="nav-section-title">User Management</div>
             <a href="admin_dashboard.php?role=user"
@@ -437,11 +487,61 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                     <span class="stat-value"><?php echo $total_bookings_count; ?></span>
                     <span class="stat-label">Total Bookings</span>
                 </div>
-                <div class="stat-card" style="background: #F0FDFA; border-color: #CCFBF1;">
-                    <span class="stat-value" style="color: #0F766E;">Active</span>
-                    <span class="stat-label" style="color: #0F766E;">System Status</span>
+                <div class="stat-card">
+                    <span class="stat-value">₹<?php echo number_format($total_platform_revenue, 2); ?></span>
+                    <span class="stat-label">Total Revenue</span>
                 </div>
             </div>
+
+            <?php if ($role_filter === 'all' || $role_filter === 'analytics'): ?>
+                <!-- Analytics Section -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Revenue Chart -->
+                    <div class="content-card" style="padding: 1.5rem;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 1.5rem;">Revenue Overview (Last 6 Months)</h3>
+                        <canvas id="revenueChart" height="150"></canvas>
+                    </div>
+                    <!-- Booking Status Pie -->
+                    <div class="content-card" style="padding: 1.5rem;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 1.5rem;">Booking Status</h3>
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Top Services -->
+                    <div class="content-card" style="padding: 1.5rem;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 1.5rem;">Most Popular Services</h3>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Bookings</th>
+                                        <th>Revenue</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($service_usage_stats as $stat): ?>
+                                        <tr>
+                                            <td style="font-weight: 600;"><?php echo htmlspecialchars($stat['service_name']); ?>
+                                            </td>
+                                            <td><?php echo $stat['booking_count']; ?></td>
+                                            <td>₹<?php echo number_format($stat['total_revenue'], 2); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Additional Card: Service Usage Breakdown (Doughnut) -->
+                    <div class="content-card" style="padding: 1.5rem;">
+                        <h3 style="font-size: 1.1rem; margin-bottom: 1.5rem;">Service Distribution</h3>
+                        <canvas id="serviceChart"></canvas>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <!-- Enhanced Filter Bar -->
             <div class="content-card" style="margin-bottom: 1.5rem; padding: 1rem;">
@@ -457,7 +557,8 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                         </option>
                     </select>
                     <button type="submit" class="btn btn-primary"
-                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Filter Results</button>
+                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Filter
+                        Results</button>
                     <?php if ($search || $role_filter !== 'all'): ?>
                         <a href="admin_dashboard.php" class="btn btn-outline"
                             style="padding: 0.5rem 1rem; font-size: 0.9rem;">Clear</a>
@@ -525,7 +626,8 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                         <h3 style="font-size: 1.1rem; margin: 0;">Service Providers (Helpers)</h3>
                         <div>
                             <span class="status-badge badge-purple"
-                                style="margin-right: 1rem;"><?php echo count($helpers); ?> Helpers</span>
+                                style="margin-right: 1rem;"><?php echo count($helpers); ?>
+                                Helpers</span>
                             <button type="button" class="btn btn-primary" onclick="openAddHelperModal()"
                                 style="font-size: 0.85rem; padding: 0.5rem 1rem;">
                                 <span class="material-icons"
@@ -916,6 +1018,68 @@ if ($role_filter === 'all' || $role_filter === 'helper') {
                         }
                     }
                 });
+            });
+        </script>
+
+        <script>
+            // Analytics Charts
+            document.addEventListener('DOMContentLoaded', function () {
+                <?php if ($role_filter === 'all' || $role_filter === 'analytics'): ?>
+                    // 1. Revenue Chart
+                    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+                    new Chart(revenueCtx, {
+                        type: 'line',
+                        data: {
+                            labels: <?php echo json_encode(array_column($revenue_stats, 'month_label')); ?>,
+                            datasets: [{
+                                label: 'Revenue (₹)',
+                                data: <?php echo json_encode(array_column($revenue_stats, 'monthly_revenue')); ?>,
+                                borderColor: '#2563EB',
+                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                fill: true,
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+
+                    // 2. Status Chart
+                    const statusCtx = document.getElementById('statusChart').getContext('2d');
+                    new Chart(statusCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: <?php echo json_encode(array_column($booking_status_stats, 'status')); ?>,
+                            datasets: [{
+                                data: <?php echo json_encode(array_column($booking_status_stats, 'count')); ?>,
+                                backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1']
+                            }]
+                        },
+                        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                    });
+
+                    // 3. Service Chart
+                    const serviceCtx = document.getElementById('serviceChart').getContext('2d');
+                    new Chart(serviceCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: <?php echo json_encode(array_column($service_usage_stats, 'service_name')); ?>,
+                            datasets: [{
+                                label: 'Bookings',
+                                data: <?php echo json_encode(array_column($service_usage_stats, 'booking_count')); ?>,
+                                backgroundColor: '#6366F1'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                <?php endif; ?>
             });
         </script>
     </main>
