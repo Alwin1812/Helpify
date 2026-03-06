@@ -13,10 +13,11 @@ if (!$booking_id) {
 
 // Fetch booking and payment details
 $stmt = $pdo->prepare("
-    SELECT b.*, s.name as service_name, s.base_price, u.name as helper_name, u.phone_number as helper_phone
+    SELECT b.*, s.name as service_name, s.base_price, u.name as helper_name, u.phone_number as helper_phone, usr.is_plus_member
     FROM bookings b
     JOIN services s ON b.service_id = s.id
     LEFT JOIN users u ON b.helper_id = u.id
+    JOIN users usr ON b.user_id = usr.id
     WHERE b.id = ? AND b.user_id = ? AND b.payment_status = 'paid'
 ");
 $stmt->execute([$booking_id, $_SESSION['user_id']]);
@@ -199,7 +200,13 @@ if (!$booking) {
             <div class="receipt-row">
                 <span class="label">Transaction ID</span>
                 <span class="value">
-                    <?php echo $booking['razorpay_payment_id'] ?: 'N/A'; ?>
+                    <?php
+                    if ($booking['payment_method'] === 'Wallet') {
+                        echo "Wallet Payment #W-" . $booking['id'];
+                    } else {
+                        echo $booking['razorpay_payment_id'] ?: 'N/A';
+                    }
+                    ?>
                 </span>
             </div>
             <div class="receipt-row">
@@ -227,20 +234,37 @@ if (!$booking) {
                 </span>
             </div>
 
-            <?php if ($booking['promo_code']): ?>
+            <div style="margin: 1.5rem 0; border-top: 1px dashed #E5E7EB; padding-top: 1rem;">
                 <div class="receipt-row">
-                    <span class="label">Promo Code Applied</span>
+                    <span class="label">Base Amount</span>
+                    <span class="value">₹
+                        <?php echo number_format($booking['total_amount'] + $booking['discount_amount'] - $booking['platform_fee'], 2); ?></span>
+                </div>
+
+                <div class="receipt-row">
+                    <span class="label">Platform Fee</span>
                     <span class="value">
-                        <?php echo htmlspecialchars($booking['promo_code']); ?>
+                        <?php if ($booking['platform_fee'] > 0): ?>
+                            ₹ <?php echo number_format($booking['platform_fee'], 2); ?>
+                        <?php else: ?>
+                            <span style="color: #10B981;">₹ 0 (Plus Member)</span>
+                        <?php endif; ?>
                     </span>
                 </div>
-                <div class="receipt-row">
-                    <span class="label">Discount</span>
-                    <span class="value text-danger">- ₹
-                        <?php echo number_format($booking['discount_amount'], 2); ?>
-                    </span>
-                </div>
-            <?php endif; ?>
+
+                <?php if ($booking['discount_amount'] > 0): ?>
+                    <div class="receipt-row" style="background: #FEF2F2; margin: 4px -30px; padding: 12px 30px;">
+                        <span class="label" style="color: #991B1B; font-weight: 600;">
+                            <?php echo ($booking['payment_method'] === 'Wallet') ? 'Wallet Special Savings' : 'Discount'; ?>
+                            <?php if ($booking['promo_code']): ?> (incl.
+                                <?php echo htmlspecialchars($booking['promo_code']); ?>)<?php endif; ?>
+                        </span>
+                        <span class="value" style="color: #DC2626; font-weight: 800;">
+                            - ₹ <?php echo number_format($booking['discount_amount'], 2); ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
 
         <div class="total-section">

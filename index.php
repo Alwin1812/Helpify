@@ -13,6 +13,7 @@ session_start();
     <link rel="stylesheet" href="assets/css/home_redesign.css?v=<?php echo time(); ?>">
     <!-- Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/chat.css?v=<?php echo time(); ?>">
 </head>
 
 <body>
@@ -175,19 +176,31 @@ session_start();
                 foreach ($bundles as $bundle): ?>
                     <div style="border: 1px solid #E2E8F0; border-radius: 24px; overflow: hidden; transition: all 0.3s; cursor: pointer; background: white; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);"
                         onmouseover="this.style.transform='translateY(-10px)'; this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1)'"
-                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05)'">
-                        <div style="background: #eff6ff; padding: 2.5rem 2rem; text-align: left;">
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05)'"
+                        onclick="window.location.href='<?php echo isset($_SESSION['user_id']) ? 'dashboard.php?bundle_id=' . $bundle['id'] : 'login.php'; ?>'">
+                        <div style="height: 200px; overflow: hidden; position: relative;">
+                            <?php if (!empty($bundle['image_url'])): ?>
+                                <img src="<?php echo htmlspecialchars($bundle['image_url']); ?>?v=<?php echo time(); ?>"
+                                    alt="<?php echo htmlspecialchars($bundle['name']); ?>"
+                                    style="width: 100%; height: 100%; object-fit: cover;">
+                            <?php else: ?>
+                                <div
+                                    style="width: 100%; height: 100%; background: #EFF6FF; display: flex; align-items: center; justify-content: center;">
+                                    <span class="material-icons" style="font-size: 48px; color: #2563EB;">card_giftcard</span>
+                                </div>
+                            <?php endif; ?>
                             <div
-                                style="color: #2563EB; font-weight: 700; margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">
-                                SAVE <?php echo $bundle['discount_percentage']; ?>%</div>
+                                style="position: absolute; top: 1.5rem; left: 1.5rem; background: rgba(37, 99, 235, 0.9); color: white; padding: 0.4rem 1rem; border-radius: 99px; font-weight: 700; font-size: 0.8rem; text-transform: uppercase;">
+                                SAVE <?php echo $bundle['discount_percentage']; ?>%
+                            </div>
+                        </div>
+                        <div style="padding: 2rem; text-align: left; background: white;">
                             <h3 style="font-size: 1.75rem; margin-bottom: 0.75rem; color: #0F172A;">
                                 <?php echo htmlspecialchars($bundle['name']); ?>
                             </h3>
-                            <p style="color: #64748B; font-size: 0.95rem; line-height: 1.5;">
+                            <p style="color: #64748B; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.5rem;">
                                 <?php echo htmlspecialchars($bundle['description']); ?>
                             </p>
-                        </div>
-                        <div style="padding: 2rem; text-align: left; background: white;">
                             <div style="font-weight: 600; color: #0F172A; margin-bottom: 1rem; font-size: 0.9rem;">What's
                                 included:</div>
                             <ul style="list-style: none; padding: 0; margin-bottom: 2rem;">
@@ -204,7 +217,8 @@ session_start();
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
-                            <a href="login.php" class="btn btn-primary"
+                            <a href="<?php echo isset($_SESSION['user_id']) ? 'dashboard.php?bundle_id=' . $bundle['id'] : 'login.php'; ?>"
+                                class="btn btn-primary"
                                 style="width: 100%; text-align: center; display: block; background: #0F172A; padding: 1rem; border-radius: 12px; font-weight: 600; text-decoration: none; color: white;">Book
                                 Bundle</a>
                         </div>
@@ -659,6 +673,106 @@ session_start();
                 }
             });
         });
+    </script>
+    <!-- AI Concierge Floating Button -->
+    <div id="aiConciergeBtn"
+        style="position: fixed; bottom: 30px; right: 30px; width: 65px; height: 65px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4); z-index: 2100; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <span class="material-icons" style="font-size: 35px;">smart_toy</span>
+    </div>
+
+    <!-- AI Concierge Modal -->
+    <div id="aiConciergeOverlay" class="chat-modal-overlay"
+        style="display: none; height: 480px; bottom: 110px; right: 30px; flex-direction: column; overflow: hidden;">
+        <div class="chat-header" style="background: linear-gradient(135deg, #059669 0%, #10B981 100%);">
+            <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;"><span
+                    class="material-icons">smart_toy</span> Helpify AI Concierge</h4>
+            <span class="material-icons close-chat" onclick="toggleAIConcierge()">close</span>
+        </div>
+        <div id="aiChatMessages" class="chat-messages" style="background: #F0FDF4; flex: 1; padding: 1.2rem;">
+            <div class="message-bubble received">
+                Hi there! Welcome to Helpify. I can help you find the perfect service for your home. What are you
+                looking for today?
+                <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;">
+                    <button onclick="sendAIQuery('I need cleaning')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Cleaning</button>
+                    <button onclick="sendAIQuery('What are your deals?')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Deals</button>
+                    <button onclick="sendAIQuery('Need repairs')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Repairs</button>
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="aiInput" placeholder="Ask about maids, ac repair..."
+                onkeypress="if(event.key === 'Enter') sendAIChat()">
+            <button class="chat-send-btn" onclick="sendAIChat()" style="background: #10B981;">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('aiConciergeBtn').onclick = toggleAIConcierge;
+
+        function toggleAIConcierge() {
+            const overlay = document.getElementById('aiConciergeOverlay');
+            overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function sendAIQuery(q) {
+            document.getElementById('aiInput').value = q;
+            sendAIChat();
+        }
+
+        async function sendAIChat() {
+            const input = document.getElementById('aiInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            addAIMessage(query, 'sent');
+            input.value = '';
+
+            try {
+                const res = await fetch('api/ai_concierge.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+
+                let html = data.text;
+                if (data.recommendations && data.recommendations.length > 0) {
+                    html += '<div style="margin-top: 10px; border-top: 1px dashed #BBF7D0; padding-top: 10px;">';
+                    data.recommendations.forEach(rec => {
+                        const label = rec.type === 'bundle' ? 'Bundle Offer' : (rec.type === 'category' ? 'Department' : 'Service');
+                        html += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 12px; margin-bottom: 8px; border: 1px solid #BBF7D0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.85rem; font-weight: 700; color: #065F46;">${rec.name}</span>
+                                    <span style="font-size: 0.75rem; color: #059669;">${label}</span>
+                                </div>
+                                <a href="dashboard.php" style="background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; text-decoration: none; font-weight: 600;">Check Out</a>
+                            </div>`;
+                    });
+                    html += '</div>';
+                }
+
+                addAIMessage(html, 'received');
+            } catch (err) {
+                addAIMessage("I'm resting right now. Visit us later!", 'received');
+            }
+        }
+
+        function addAIMessage(text, type) {
+            const container = document.getElementById('aiChatMessages');
+            const div = document.createElement('div');
+            div.className = `message-bubble ${type}`;
+            if (type === 'sent') {
+                div.style = "align-self: flex-end; background: #10B981; color: white; padding: 10px 14px; border-radius: 18px 18px 2px 18px; margin-bottom: 10px;";
+            } else {
+                div.style = "align-self: flex-start; background: white; color: #1E293B; padding: 10px 14px; border-radius: 18px 18px 18px 2px; margin-bottom: 10px; border: 1px solid #BBF7D0;";
+            }
+            div.innerHTML = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
     </script>
 </body>
 

@@ -22,16 +22,27 @@ $generated_signature = hash_hmac('sha256', $order_id . "|" . $payment_id, $razor
 
 if (hash_equals($generated_signature, $signature)) {
     // Payment is authentic and verified
+    // Fetch order amount from Razorpay to ensure we save the final total (including fees)
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "https://api.razorpay.com/v1/orders/$order_id");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_USERPWD, $razorpay_key_id . ":" . $razorpay_key_secret);
+    $result = curl_exec($ch);
+    curl_close($ch);
+    $order = json_decode($result, true);
+    $amount = ($order['amount'] ?? 0) / 100;
+
     try {
         $stmt = $pdo->prepare("
             UPDATE bookings 
             SET payment_status = 'paid', 
                 razorpay_payment_id = ?, 
-                razorpay_signature = ? 
+                razorpay_signature = ?,
+                total_amount = ?
             WHERE id = ? AND razorpay_order_id = ?
         ");
 
-        $success = $stmt->execute([$payment_id, $signature, $booking_id, $order_id]);
+        $success = $stmt->execute([$payment_id, $signature, $amount, $booking_id, $order_id]);
 
         if ($success) {
             echo json_encode(['success' => true]);

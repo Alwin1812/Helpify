@@ -16,22 +16,23 @@ if (!$booking_id) {
 }
 
 try {
-    // Get total price for the service
+    // Get total price from booking record (already calculated in booking_action.php)
     $stmt = $pdo->prepare("
-        SELECT IF(b.total_amount > 0, b.total_amount, s.base_price) 
-        FROM bookings b 
-        JOIN services s ON b.service_id = s.id 
-        WHERE b.id = ? AND b.user_id = ?
+        SELECT total_amount 
+        FROM bookings 
+        WHERE id = ? AND user_id = ?
     ");
     $stmt->execute([$booking_id, $_SESSION['user_id']]);
-    $price = $stmt->fetchColumn();
+    $row = $stmt->fetch();
 
-    if (!$price) {
+    if (!$row) {
         echo json_encode(['success' => false, 'error' => 'Invalid booking or unauthorized']);
         exit;
     }
 
-    $amount = (int) ($price * 100); // converting to paise
+    $total_price = (float) $row['total_amount'];
+
+    $amount = (int) ($total_price * 100); // converting to paise
 
     // Make Razorpay API call via cURL
     $ch = curl_init();

@@ -99,6 +99,55 @@ if ($role_filter === 'all' || $role_filter === 'analytics') {
     $total_platform_revenue = $pdo->query("SELECT SUM(total_amount) FROM bookings WHERE status != 'cancelled'")->fetchColumn() ?: 0;
 }
 
+// Fetch Bookings
+$all_bookings = [];
+if ($role_filter === 'bookings') {
+    $sql = "SELECT b.*, u.name as user_name, h.name as helper_name, s.name as service_name 
+            FROM bookings b 
+            JOIN users u ON b.user_id = u.id 
+            JOIN services s ON b.service_id = s.id 
+            LEFT JOIN users h ON b.helper_id = h.id 
+            WHERE 1=1";
+    $params = [];
+    if ($search) {
+        $sql .= " AND (u.name LIKE ? OR s.name LIKE ? OR b.id = ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+        $params[] = $search;
+    }
+    $sql .= " ORDER BY b.created_at DESC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $all_bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Fetch Payments / Transactions
+$all_transactions = [];
+if ($role_filter === 'payments') {
+    $stmt = $pdo->query("
+        SELECT wt.*, u.name as user_name, u.email as user_email 
+        FROM wallet_transactions wt 
+        JOIN users u ON wt.user_id = u.id 
+        ORDER BY wt.created_at DESC 
+        LIMIT 100
+    ");
+    $all_transactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Fetch Reviews
+$all_reviews = [];
+if ($role_filter === 'reviews') {
+    $stmt = $pdo->query("
+        SELECT r.*, u.name as user_name, s.name as service_name 
+        FROM reviews r 
+        JOIN users u ON r.reviewer_id = u.id 
+        JOIN bookings b ON r.booking_id = b.id 
+        JOIN services s ON b.service_id = s.id 
+        ORDER BY r.created_at DESC
+    ");
+    $all_reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 // Fetch Complaints
 $complaints = [];
 if ($role_filter === 'complaints') {
@@ -402,6 +451,7 @@ if ($role_filter === 'complaints') {
             font-size: 0.9rem;
             cursor: pointer;
         }
+
         /* Complaint Chat Styles */
         .chat-modal-overlay {
             position: fixed;
@@ -411,7 +461,7 @@ if ($role_filter === 'complaints') {
             height: 500px;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
             display: none;
             flex-direction: column;
             overflow: hidden;
@@ -856,40 +906,221 @@ if ($role_filter === 'complaints') {
                                                 <div style="font-weight: 600; color: var(--primary-color);">
                                                     <?php echo htmlspecialchars($c['reporter_name']); ?>
                                                 </div>
-                                                <div style="font-size: 0.75rem; color: #6B7280; font-weight: 500; text-transform: uppercase;">
+                                                <div
+                                                    style="font-size: 0.75rem; color: #6B7280; font-weight: 500; text-transform: uppercase;">
                                                     <?php echo $c['reporter_role']; ?>
                                                 </div>
                                             </td>
                                             <td>
-                                                <div style="font-weight: 500;"><?php echo htmlspecialchars($c['service_name'] ?: 'General'); ?></div>
-                                                <div style="font-size: 0.8rem; color: #6B7280;">
-                                                    Job #<?php echo $c['booking_id']; ?> 
-                                                    <?php if ($c['subject_name']): ?>
-                                                        • Against: <strong><?php echo htmlspecialchars($c['subject_name']); ?></strong> (<?php echo $c['subject_role']; ?>)
-                                                    <?php endif; ?>
-                                                </div>
-                                            </td>
-                                            <td style="max-width: 300px;">
-                                                <div style="font-size: 0.9rem; color: #4B5563;">
-                                                    <?php echo htmlspecialchars($c['description']); ?>
-                                                </div>
-                                            </td>
+                                                <div style="font-weight: 500;">
+                                                    <?php echo htmlspecialchars($c['service_name'] ?: 'General'); ?></div>
+                                                            <div style="font-size: 0.8rem; color: #6B7280;">
+                                                                Job #<?php echo $c['booking_id']; ?>
+                                                                <?php if ($c['subject_name']): ?>
+                                                                        • Against: <strong><?php echo htmlspecialchars($c['subject_name']); ?></strong>
+                                                                        (<?php echo $c['subject_role']; ?>)
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        </td>
+                                                        <td style="max-width: 300px;">
+                                                            <div style="font-size: 0.9rem; color: #4B5563;">
+                                                                <?php echo htmlspecialchars($c['description']); ?>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="status-badge"
+                                                                style="background: <?php echo $c['status'] === 'resolved' ? '#D1FAE5; color: #065F46;' : ($c['status'] === 'pending' ? '#FEF3C7; color: #92400E;' : '#F3F4F6; color: #374151;'); ?>">
+                                                                <?php echo ucfirst($c['status']); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td><?php echo date('M d, Y', strtotime($c['created_at'])); ?></td>
+                                                        <td style="text-align: right;">
+                                                            <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;"
+                                                                onclick="openAdminComplaintChat(<?php echo $c['id']; ?>, '<?php echo addslashes($c['reporter_name']); ?>')">
+                                                                Manage & Chat
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                            <?php endforeach; ?>
+                                    <?php else: ?>
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 3rem; color: #9CA3AF;">No complaints
+                                                    found.</td>
+                                            </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+            <?php endif; ?>
+
+            <?php if ($role_filter === 'bookings'): ?>
+                    <!-- Bookings Table -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3 style="font-size: 1.1rem; margin: 0;">Service Bookings</h3>
+                            <span class="status-badge badge-blue"><?php echo count($all_bookings); ?> Bookings</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ref / Service</th>
+                                        <th>Customer</th>
+                                        <th>Helper</th>
+                                        <th>Schedule</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Payment</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (count($all_bookings) > 0): ?>
+                                            <?php foreach ($all_bookings as $b): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div style="font-weight: 700; color: #111827;">#<?php echo $b['id']; ?></div>
+                                                            <div style="font-size: 0.85rem; color: #6B7280;"><?php echo htmlspecialchars($b['service_name']); ?></div>
+                                                        </td>
+                                                        <td>
+                                                            <div style="font-weight: 500;"><?php echo htmlspecialchars($b['user_name']); ?></div>
+                                                        </td>
+                                                        <td>
+                                                            <div style="color: <?php echo $b['helper_name'] ? '#2563EB' : '#94A3B8'; ?>; font-weight: 500;">
+                                                                <?php echo htmlspecialchars($b['helper_name'] ?: 'Not Assigned'); ?>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div style="font-size: 0.9rem;"><?php echo date('d M Y', strtotime($b['date'])); ?></div>
+                                                            <div style="font-size: 0.75rem; color: #9CA3AF;"><?php echo $b['time']; ?></div>
+                                                        </td>
+                                                        <td>
+                                                            <div style="font-weight: 700;">₹<?php echo number_format($b['total_amount'], 2); ?></div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="status-badge" style="
+                                                    background: <?php echo $b['status'] === 'completed' ? '#D1FAE5' : ($b['status'] === 'cancelled' ? '#FEE2E2' : '#EFF6FF'); ?>;
+                                                    color: <?php echo $b['status'] === 'completed' ? '#065F46' : ($b['status'] === 'cancelled' ? '#991B1B' : '#1E40AF'); ?>;
+                                                ">
+                                                                <?php echo strtoupper($b['status']); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="status-badge" style="
+                                                    background: <?php echo $b['payment_status'] === 'paid' ? '#D1FAE5' : '#FEF3C7'; ?>;
+                                                    color: <?php echo $b['payment_status'] === 'paid' ? '#065F46' : '#92400E'; ?>;
+                                                ">
+                                                                <?php echo strtoupper($b['payment_status']); ?>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                            <?php endforeach; ?>
+                                    <?php else: ?>
+                                            <tr>
+                                                <td colspan="7" style="text-align: center; padding: 3rem; color: #9CA3AF;">No bookings found.</td>
+                                            </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+            <?php endif; ?>
+
+            <?php if ($role_filter === 'payments'): ?>
+                    <!-- Transactions Table -->
+                    <div class="content-card">
+                        <div class="card-header">
+                            <h3 style="font-size: 1.1rem; margin: 0;">Wallet Transactions</h3>
+                            <span class="status-badge badge-blue">Recent History</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Description</th>
+                                        <th>Amount</th>
+                                        <th>Type</th>
+                                        <th>Reference</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (count($all_transactions) > 0): ?>
+                                            <?php foreach ($all_transactions as $tx): ?>
+                                                    <tr>
+                                                        <td>
+                                                            <div style="font-weight: 600;"><?php echo htmlspecialchars($tx['user_name']); ?></div>
+                                                            <div style="font-size: 0.75rem; color: #6B7280;"><?php echo $tx['user_email']; ?></div>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars($tx['description']); ?></td>
+                                                        <td>
+                                                            <div style="font-weight: 700; color: <?php echo $tx['type'] === 'credit' ? '#10B981' : '#EF4444'; ?>;">
+                                                                <?php echo $tx['type'] === 'credit' ? '+' : '-'; ?> ₹<?php echo number_format($tx['amount'], 2); ?>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="status-badge <?php echo $tx['type'] === 'credit' ? 'badge-blue' : 'badge-purple'; ?>">
+                                                                <?php echo strtoupper($tx['type']); ?>
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <code style="font-size: 0.75rem; color: #6366F1;"><?php echo $tx['razorpay_payment_id'] ?: 'Internal'; ?></code>
+                                                        </td>
+                                                        <td>
+                                                            <div style="font-size: 0.9rem;"><?php echo date('d M Y', strtotime($tx['created_at'])); ?></div>
+                                                            <div style="font-size: 0.75rem; color: #9CA3AF;"><?php echo date('h:i A', strtotime($tx['created_at'])); ?></div>
+                                                        </td>
+                                                    </tr>
+                                            <?php endforeach; ?>
+                                    <?php else: ?>
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 3rem; color: #9CA3AF;">No transactions recorded.</td>
+                                            </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+            <?php endif; ?>
+
+            <?php if ($role_filter === 'reviews'): ?>
+                <!-- Reviews Table -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h3 style="font-size: 1.1rem; margin: 0;">Service Reviews</h3>
+                        <span class="status-badge badge-blue"><?php echo count($all_reviews); ?> Total</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Service</th>
+                                    <th>Customer</th>
+                                    <th>Rating</th>
+                                    <th>Comment</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (count($all_reviews) > 0): ?>
+                                    <?php foreach ($all_reviews as $r): ?>
+                                        <tr>
+                                            <td style="font-weight: 600;"><?php echo htmlspecialchars($r['service_name']); ?></td>
+                                            <td><?php echo htmlspecialchars($r['user_name']); ?></td>
                                             <td>
-                                                <span class="status-badge" style="background: <?php echo $c['status'] === 'resolved' ? '#D1FAE5; color: #065F46;' : ($c['status'] === 'pending' ? '#FEF3C7; color: #92400E;' : '#F3F4F6; color: #374151;'); ?>">
-                                                    <?php echo ucfirst($c['status']); ?>
-                                                </span>
+                                                <div style="color: #F59E0B; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                                    <span class="material-icons" style="font-size: 16px;">star</span>
+                                                    <?php echo $r['rating']; ?>.0
+                                                </div>
                                             </td>
-                                            <td><?php echo date('M d, Y', strtotime($c['created_at'])); ?></td>
-                                            <td style="text-align: right;">
-                                                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="openAdminComplaintChat(<?php echo $c['id']; ?>, '<?php echo addslashes($c['reporter_name']); ?>')">
-                                                    Manage & Chat
-                                                </button>
-                                            </td>
+                                            <td style="max-width: 400px;"><?php echo htmlspecialchars($r['comment']); ?></td>
+                                            <td><?php echo date('d M Y', strtotime($r['created_at'])); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="6" style="text-align: center; padding: 3rem; color: #9CA3AF;">No complaints found.</td>
+                                        <td colspan="5" style="text-align: center; padding: 3rem; color: #9CA3AF;">No reviews yet.</td>
                                     </tr>
                                 <?php endif; ?>
                             </tbody>
@@ -898,19 +1129,49 @@ if ($role_filter === 'complaints') {
                 </div>
             <?php endif; ?>
 
-            <?php if (!in_array($role_filter, ['all', 'user', 'helper', 'complaints'])): ?>
-                <div class="content-card"
-                    style="padding: 4rem 2rem; text-align: center; border: 1px dashed #D1D5DB; background: #F9FAFB;">
-                    <span class="material-icons"
-                        style="font-size: 64px; color: #9CA3AF; margin-bottom: 1rem;">construction</span>
-                    <h3 style="font-size: 1.5rem; color: #111827; margin-bottom: 0.5rem; font-weight: 700;">Module in
-                        Development</h3>
-                    <p style="color: #6B7280; max-width: 400px; margin: 0 auto; line-height: 1.5;">
-                        The <strong style="color: #4B5563; text-transform: capitalize;">
-                            <?php echo htmlspecialchars($role_filter); ?>
-                        </strong> module is currently being built and will be available in the next system update.
-                    </p>
+            <?php if ($role_filter === 'settings'): ?>
+                <!-- Settings Section -->
+                <div class="content-card" style="padding: 2rem;">
+                    <h3 style="margin-bottom: 2rem;">System Settings</h3>
+                    <form action="api/admin_action.php" method="POST" style="max-width: 600px;">
+                        <input type="hidden" name="action" value="update_settings">
+                        
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Business Name</label>
+                            <input type="text" name="business_name" value="Helpify" class="btn-filter" style="width: 100%; padding: 0.8rem;">
+                        </div>
+
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Admin Email</label>
+                            <input type="email" name="admin_email" value="admin@helpify.com" class="btn-filter" style="width: 100%; padding: 0.8rem;">
+                        </div>
+
+                        <div style="margin-bottom: 2rem; padding: 1rem; background: #FFF7ED; border-radius: 8px; border: 1px solid #FFEDD5;">
+                            <h4 style="color: #9A3412; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 8px;">
+                                <span class="material-icons" style="font-size: 18px;">key</span> Razorpay Integration
+                            </h4>
+                            <p style="font-size: 0.85rem; color: #9A3412; margin-bottom: 1rem;">API keys are currently managed in <code>api/config_razorpay.php</code> for security.</p>
+                            <button type="button" class="btn btn-outline" style="font-size: 0.8rem;">Rotate API Keys</button>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" style="padding: 1rem 2rem;">Save Configurations</button>
+                    </form>
                 </div>
+            <?php endif; ?>
+
+            <?php if (!in_array($role_filter, ['all', 'user', 'helper', 'complaints', 'bookings', 'payments', 'reviews', 'settings'])): ?>
+                    <div class="content-card"
+                        style="padding: 4rem 2rem; text-align: center; border: 1px dashed #D1D5DB; background: #F9FAFB;">
+                        <span class="material-icons"
+                            style="font-size: 64px; color: #9CA3AF; margin-bottom: 1rem;">construction</span>
+                        <h3 style="font-size: 1.5rem; color: #111827; margin-bottom: 0.5rem; font-weight: 700;">Module in
+                            Development</h3>
+                        <p style="color: #6B7280; max-width: 400px; margin: 0 auto; line-height: 1.5;">
+                            The <strong style="color: #4B5563; text-transform: capitalize;">
+                                <?php echo htmlspecialchars($role_filter); ?>
+                            </strong> module is currently being built and will be available in the next system update.
+                        </p>
+                    </div>
             <?php endif; ?>
 
         </div>
@@ -977,10 +1238,10 @@ if ($role_filter === 'complaints') {
                                 required>
                                 <option value="">Select Role</option>
                                 <?php foreach ($all_services as $svc): ?>
-                                    <option value="<?php echo htmlspecialchars($svc['name']); ?>"
-                                        data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
-                                        <?php echo htmlspecialchars($svc['name']); ?>
-                                    </option>
+                                        <option value="<?php echo htmlspecialchars($svc['name']); ?>"
+                                            data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
+                                            <?php echo htmlspecialchars($svc['name']); ?>
+                                        </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -1046,10 +1307,10 @@ if ($role_filter === 'complaints') {
                                 style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 6px;">
                                 <option value="">Select Role</option>
                                 <?php foreach ($all_services as $svc): ?>
-                                    <option value="<?php echo htmlspecialchars($svc['name']); ?>"
-                                        data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
-                                        <?php echo htmlspecialchars($svc['name']); ?>
-                                    </option>
+                                        <option value="<?php echo htmlspecialchars($svc['name']); ?>"
+                                            data-price="<?php echo htmlspecialchars($svc['base_price']); ?>">
+                                            <?php echo htmlspecialchars($svc['name']); ?>
+                                        </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -1231,60 +1492,60 @@ if ($role_filter === 'complaints') {
             // Analytics Charts
             document.addEventListener('DOMContentLoaded', function () {
                 <?php if ($role_filter === 'all' || $role_filter === 'analytics'): ?>
-                    // 1. Revenue Chart
-                    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-                    new Chart(revenueCtx, {
-                        type: 'line',
-                        data: {
-                            labels: <?php echo json_encode(array_column($revenue_stats, 'month_label')); ?>,
-                            datasets: [{
-                                label: 'Revenue (₹)',
-                                data: <?php echo json_encode(array_column($revenue_stats, 'monthly_revenue')); ?>,
-                                borderColor: '#2563EB',
-                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                fill: true,
-                                tension: 0.4
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: { legend: { display: false } },
-                            scales: { y: { beginAtZero: true } }
-                        }
-                    });
+                        // 1. Revenue Chart
+                        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+                        new Chart(revenueCtx, {
+                            type: 'line',
+                            data: {
+                                labels: <?php echo json_encode(array_column($revenue_stats, 'month_label')); ?>,
+                                datasets: [{
+                                    label: 'Revenue (₹)',
+                                    data: <?php echo json_encode(array_column($revenue_stats, 'monthly_revenue')); ?>,
+                                    borderColor: '#2563EB',
+                                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                    fill: true,
+                                    tension: 0.4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: { legend: { display: false } },
+                                scales: { y: { beginAtZero: true } }
+                            }
+                        });
 
-                    // 2. Status Chart
-                    const statusCtx = document.getElementById('statusChart').getContext('2d');
-                    new Chart(statusCtx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: <?php echo json_encode(array_column($booking_status_stats, 'status')); ?>,
-                            datasets: [{
-                                data: <?php echo json_encode(array_column($booking_status_stats, 'count')); ?>,
-                                backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1']
-                            }]
-                        },
-                        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-                    });
+                        // 2. Status Chart
+                        const statusCtx = document.getElementById('statusChart').getContext('2d');
+                        new Chart(statusCtx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: <?php echo json_encode(array_column($booking_status_stats, 'status')); ?>,
+                                datasets: [{
+                                    data: <?php echo json_encode(array_column($booking_status_stats, 'count')); ?>,
+                                    backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1']
+                                }]
+                            },
+                            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                        });
 
-                    // 3. Service Chart
-                    const serviceCtx = document.getElementById('serviceChart').getContext('2d');
-                    new Chart(serviceCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: <?php echo json_encode(array_column($service_usage_stats, 'service_name')); ?>,
-                            datasets: [{
-                                label: 'Bookings',
-                                data: <?php echo json_encode(array_column($service_usage_stats, 'booking_count')); ?>,
-                                backgroundColor: '#6366F1'
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: { legend: { display: false } },
-                            scales: { y: { beginAtZero: true } }
-                        }
-                    });
+                        // 3. Service Chart
+                        const serviceCtx = document.getElementById('serviceChart').getContext('2d');
+                        new Chart(serviceCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: <?php echo json_encode(array_column($service_usage_stats, 'service_name')); ?>,
+                                datasets: [{
+                                    label: 'Bookings',
+                                    data: <?php echo json_encode(array_column($service_usage_stats, 'booking_count')); ?>,
+                                    backgroundColor: '#6366F1'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: { legend: { display: false } },
+                                scales: { y: { beginAtZero: true } }
+                            }
+                        });
                 <?php endif; ?>
             });
         </script>
@@ -1294,7 +1555,8 @@ if ($role_filter === 'complaints') {
         <div class="chat-header">
             <h4><span class="material-icons">support_agent</span> Chat with <span id="chatReporterName"></span></h4>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <button onclick="resolveComplaint()" style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Resolve</button>
+                <button onclick="resolveComplaint()"
+                    style="background: #10B981; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Resolve</button>
                 <span class="material-icons close-chat" onclick="closeAdminComplaintChat()">close</span>
             </div>
         </div>
@@ -1338,11 +1600,11 @@ if ($role_filter === 'complaints') {
                             const div = document.createElement('div');
                             const isSent = msg.sender_role === 'admin';
                             div.className = `message-bubble ${isSent ? 'sent' : 'received'}`;
-                            
+
                             div.innerHTML = `
                                 <div style="font-size: 0.7rem; font-weight: 700; margin-bottom: 2px;">${isSent ? 'Me (Admin)' : msg.sender_name}</div>
                                 ${msg.message}
-                                <span class="message-time">${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                <span class="message-time">${new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             `;
                             container.appendChild(div);
                         });

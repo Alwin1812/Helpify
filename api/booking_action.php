@@ -18,6 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user_id = $_SESSION['user_id'];
     $role = $_SESSION['user_role'] ?? '';
 
+    // Check if user is a Plus member
+    $stmt = $pdo->prepare("SELECT is_plus_member FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $is_plus_member = (int) $stmt->fetchColumn();
+    $platform_fee = $is_plus_member ? 0.00 : 25.00;
+
     if ($action === 'book') {
         // ... (existing book logic)
         $service_ids = $_POST['service_ids'] ?? [];
@@ -95,6 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $total_amount = 0;
                 }
 
+                $total_amount += $platform_fee;
+
                 // 2. Find Matching Helpers (Keyword matching for assignment)
                 $keywords = [];
                 if (stripos($service_name, 'Clean') !== false || stripos($service_name, 'Maid') !== false)
@@ -148,8 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings 
-                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, start_otp, end_otp, recurrence_type, is_subscription_active) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, platform_fee, start_otp, end_otp, recurrence_type, is_subscription_active) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $user_id,
@@ -167,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $total_amount,
                     $promo_code,
                     $discount_amount,
+                    $platform_fee,
                     $start_otp,
                     $end_otp,
                     $recurrence_type,
@@ -471,6 +480,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ../dashboard.php');
             exit;
         }
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_bundle_items') {
+    $bundle_id = $_GET['bundle_id'] ?? 0;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT s.id, s.name, s.base_price 
+            FROM bundle_items bi 
+            JOIN services s ON bi.service_id = s.id 
+            WHERE bi.bundle_id = ?
+        ");
+        $stmt->execute([$bundle_id]);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'items' => $items]);
+        exit;
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
     }
 }
 // Fallback

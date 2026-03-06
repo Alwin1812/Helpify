@@ -73,6 +73,7 @@ $my_jobs = $stmt->fetchAll();
     <link rel="stylesheet" href="assets/css/chat.css?v=<?php echo time(); ?>">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .payment-status-badge {
             padding: 4px 8px;
@@ -149,6 +150,9 @@ $my_jobs = $stmt->fetchAll();
             </div>
             <div class="nav-item" onclick="showSection('profile')">
                 <span class="material-icons">person_outline</span> Profile
+            </div>
+            <div class="nav-item" onclick="showSection('earnings')">
+                <span class="material-icons">payments</span> My Earnings
             </div>
             <div class="nav-item" onclick="showSection('complaints')">
                 <span class="material-icons">report_problem</span> Support & Complaints
@@ -640,6 +644,81 @@ $my_jobs = $stmt->fetchAll();
                     <!-- Complaints will be loaded here by JS -->
                 </div>
             </div>
+
+            <!-- Earnings Section -->
+            <div id="earnings-section" class="tab-content" style="display: none; padding: 1.5rem;">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 style="font-size: 1.5rem; color: #111827;">My Earnings</h2>
+                    <button class="btn btn-primary" onclick="openWithdrawModal()">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle;">account_balance_wallet</span> Withdraw Funds
+                    </button>
+                </div>
+
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none;">
+                        <span style="font-size: 0.9rem; opacity: 0.9; text-transform: uppercase; font-weight: 600;">Total Lifetime Earnings</span>
+                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0;">₹<span id="totalEarnings">0</span></div>
+                        <span style="font-size: 0.8rem; opacity: 0.8;">After 20% platform fee</span>
+                    </div>
+                    <div class="stat-card" style="background: white; border: 1px solid #E5E7EB;">
+                        <span style="font-size: 0.9rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Withdrawable Balance</span>
+                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0; color: #111827;">₹<span id="withdrawableBalance">0</span></div>
+                        <span style="font-size: 0.8rem; color: #10B981; font-weight: 600;">Available for payout</span>
+                    </div>
+                </div>
+
+                <div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1.5rem; font-size: 1.1rem; color: #374151;">Earnings Overview (Last 7 Days)</h3>
+                    <div style="height: 300px;">
+                        <canvas id="earningsChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card" style="padding: 0; overflow: hidden;">
+                    <div style="padding: 1.5rem; background: #F8FAFC; border-bottom: 1px solid #E5E7EB;">
+                        <h3 style="font-size: 1.1rem; color: #374151;">Recent Withdrawal Requests</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #F9FAFB; text-align: left;">
+                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Date</th>
+                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Amount</th>
+                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Bank Details</th>
+                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="withdrawHistory">
+                                <!-- Requests will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Withdraw Modal -->
+            <div id="withdrawModal" class="chat-modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+                <div style="background: white; width: 450px; padding: 2rem; border-radius: 16px; position: relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+                    <span class="material-icons" style="position: absolute; right: 1.5rem; top: 1.5rem; cursor: pointer; color: #9CA3AF;" onclick="closeWithdrawModal()">close</span>
+                    <h2 style="margin-bottom: 0.5rem; color: #111827;">Withdraw Funds</h2>
+                    <p style="font-size: 0.9rem; color: #6B7280; margin-bottom: 1.5rem;">Transfer your earnings to your bank account.</p>
+                    
+                    <form id="withdrawForm">
+                        <div class="input-group">
+                            <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Withdrawal Amount (₹)</label>
+                            <input type="number" id="withdrawAmount" name="amount" required placeholder="Enter amount..." style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 1.1rem; font-weight: 700;">
+                            <small style="color: #6B7280; margin-top: 0.5rem; display: block;">Max withdrawable: ₹<span id="maxWithdraw">0</span></small>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Bank Account / UPI Details</label>
+                            <textarea name="bank_details" required placeholder="Enter your Bank Name, A/c Number, IFSC or UPI ID..." style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; height: 100px; resize: none;"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-weight: 700; background: #0F172A; border: none; font-size: 1rem; margin-top: 1rem;">Process Payout</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -902,7 +981,117 @@ $my_jobs = $stmt->fetchAll();
         showSection = function (sectionId) {
             originalShowSectionHelper(sectionId);
             if (sectionId === 'complaints') loadComplaints();
+            if (sectionId === 'earnings') loadEarnings();
         };
+
+        function loadEarnings() {
+            fetch('api/helper_earnings.php?action=get_stats')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('totalEarnings').textContent = parseFloat(data.total_earnings).toLocaleString();
+                        document.getElementById('withdrawableBalance').textContent = parseFloat(data.withdrawable_balance).toLocaleString();
+                        document.getElementById('maxWithdraw').textContent = parseFloat(data.withdrawable_balance).toLocaleString();
+                        updateEarningsChart(data.daily_stats);
+                        loadWithdrawals();
+                    }
+                });
+        }
+
+        let earningsChart = null;
+        function updateEarningsChart(stats) {
+            const ctx = document.getElementById('earningsChart').getContext('2d');
+            const labels = stats.map(s => new Date(s.date).toLocaleDateString([], { month: 'short', day: 'numeric' }));
+            const values = stats.map(s => s.earnings);
+
+            if (earningsChart) earningsChart.destroy();
+
+            earningsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Earnings (₹)',
+                        data: values,
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#10B981',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { borderDash: [5, 5] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function loadWithdrawals() {
+            fetch('api/helper_earnings.php?action=get_withdrawals')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('withdrawHistory');
+                        tbody.innerHTML = '';
+                        if (data.withdrawals.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="4" style="padding: 2rem; text-align: center; color: #94a3b8;">No withdrawal history.</td></tr>';
+                            return;
+                        }
+                        data.withdrawals.forEach(w => {
+                            const statusColor = w.status === 'completed' ? '#10B981' : (w.status === 'pending' ? '#F59E0B' : '#EF4444');
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td style="padding: 1rem; border-bottom: 1px solid #E5E7EB;">${new Date(w.created_at).toLocaleDateString()}</td>
+                                    <td style="padding: 1rem; border-bottom: 1px solid #E5E7EB; font-weight: 600;">₹${parseFloat(w.amount).toLocaleString()}</td>
+                                    <td style="padding: 1rem; border-bottom: 1px solid #E5E7EB; color: #64748B; font-size: 0.85rem;">${w.bank_details}</td>
+                                    <td style="padding: 1rem; border-bottom: 1px solid #E5E7EB;">
+                                        <span class="status-badge" style="background: ${statusColor}15; color: ${statusColor};">${w.status.toUpperCase()}</span>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+                });
+        }
+
+        function openWithdrawModal() {
+            document.getElementById('withdrawModal').style.display = 'flex';
+        }
+
+        function closeWithdrawModal() {
+            document.getElementById('withdrawModal').style.display = 'none';
+        }
+
+        document.getElementById('withdrawForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            formData.append('action', 'request_withdrawal');
+
+            fetch('api/helper_earnings.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeWithdrawModal();
+                    loadEarnings();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        });
     </script>
 </body>
 
