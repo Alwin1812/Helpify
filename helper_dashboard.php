@@ -27,17 +27,55 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $my_applications[$row['booking_id']] = $row;
 }
 
-// Available jobs (pending or accepted-but-open, matching role)
-$stmt = $pdo->prepare("
+// 1. Define keyword matching logic similar to booking_action.php
+$keywords = [];
+if (stripos($helper_role, 'Clean') !== false || stripos($helper_role, 'Maid') !== false) {
+    $keywords = ['Clean', 'Maid', 'House', 'InstaHelp', 'Bathroom'];
+} elseif (stripos($helper_role, 'Cook') !== false) {
+    $keywords = ['Cook', 'Chef'];
+} elseif (stripos($helper_role, 'Electr') !== false) {
+    $keywords = ['Electr'];
+} elseif (stripos($helper_role, 'Plumb') !== false) {
+    $keywords = ['Plumb'];
+} elseif (stripos($helper_role, 'AC ') !== false || stripos($helper_role, 'Appliance') !== false) {
+    $keywords = ['AC', 'Appliance', 'Repair'];
+}
+
+// 2. Build the query to find matching bookings
+$sql = "
     SELECT b.*, s.name as service_name, u.name as user_name, u.profile_photo as user_photo
     FROM bookings b 
     JOIN services s ON b.service_id = s.id 
     JOIN users u ON b.user_id = u.id 
     WHERE (b.status = 'pending' OR (b.status = 'accepted' AND b.helper_id IS NULL))
-    AND s.name = ? 
-    ORDER BY b.created_at ASC
-");
-$stmt->execute([$helper_role]);
+";
+$params = [];
+
+if (!empty($keywords)) {
+    $conditions = [];
+    foreach ($keywords as $k) {
+        $conditions[] = "s.name LIKE ?";
+        $params[] = "%$k%";
+    }
+    // Also include exact match as fallback or primary
+    $conditions[] = "s.name LIKE ?";
+    $params[] = "%$helper_role%";
+
+    $sql .= " AND (" . implode(" OR ", $conditions) . ")";
+} else {
+    $sql .= " AND (s.name LIKE ? OR s.name LIKE ?)";
+    $params[] = "%$helper_role%";
+    $params[] = "%" . trim($helper_role) . "%";
+}
+
+// 3. Respect Gender Preference if set by user
+$sql .= " AND (b.preferred_gender = 'Any' OR b.preferred_gender = ?)";
+$params[] = $helper['gender'];
+
+$sql .= " ORDER BY b.created_at ASC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $all_requests = $stmt->fetchAll();
 
 // Filter requests
@@ -300,6 +338,12 @@ $my_jobs = $stmt->fetchAll();
                                                 <span class="flex items-center gap-1"><span class="material-icons"
                                                         style="font-size: 16px;">place</span>
                                                     <?php echo htmlspecialchars($req['location'] ?? 'Remote'); ?></span>
+                                                <?php if ($req['preferred_gender'] && $req['preferred_gender'] !== 'Any'): ?>
+                                                    <span class="flex items-center gap-1" style="color: #DB2777; font-weight: 600;">
+                                                        <span class="material-icons" style="font-size: 16px;">wc</span>
+                                                        Preferred: <?php echo $req['preferred_gender']; ?>
+                                                    </span>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -492,7 +536,7 @@ $my_jobs = $stmt->fetchAll();
                                         <?php endif; ?>
                                         <?php if ($job['status'] !== 'cancelled'): ?>
                                             <button class="btn btn-outline"
-                                                style="margin-top: 8px; width: 100%; color: #EF4444; border-color: #EF4444; font-size: 0.8rem; padding: 0.4rem 1rem;"
+                                                style="margin-top: 8px; width: 100%; background: #fef2f2; color: #EF4444; border-color: #EF4444; font-size: 0.8rem; padding: 0.4rem 1rem;"
                                                 onclick="openComplaintModal('<?php echo $job['id']; ?>', '<?php echo htmlspecialchars($job['service_name']); ?>')">
                                                 <span class="material-icons"
                                                     style="font-size: 16px; vertical-align: middle;">report_problem</span>
@@ -650,25 +694,36 @@ $my_jobs = $stmt->fetchAll();
                 <div class="flex justify-between items-center mb-4">
                     <h2 style="font-size: 1.5rem; color: #111827;">My Earnings</h2>
                     <button class="btn btn-primary" onclick="openWithdrawModal()">
-                        <span class="material-icons" style="font-size: 18px; vertical-align: middle;">account_balance_wallet</span> Withdraw Funds
+                        <span class="material-icons"
+                            style="font-size: 18px; vertical-align: middle;">account_balance_wallet</span> Withdraw
+                        Funds
                     </button>
                 </div>
 
-                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                    <div class="stat-card" style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none;">
-                        <span style="font-size: 0.9rem; opacity: 0.9; text-transform: uppercase; font-weight: 600;">Total Lifetime Earnings</span>
-                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0;">₹<span id="totalEarnings">0</span></div>
+                <div class="grid"
+                    style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="stat-card"
+                        style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border: none;">
+                        <span
+                            style="font-size: 0.9rem; opacity: 0.9; text-transform: uppercase; font-weight: 600;">Total
+                            Lifetime Earnings</span>
+                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0;">₹<span
+                                id="totalEarnings">0</span></div>
                         <span style="font-size: 0.8rem; opacity: 0.8;">After 20% platform fee</span>
                     </div>
                     <div class="stat-card" style="background: white; border: 1px solid #E5E7EB;">
-                        <span style="font-size: 0.9rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Withdrawable Balance</span>
-                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0; color: #111827;">₹<span id="withdrawableBalance">0</span></div>
+                        <span
+                            style="font-size: 0.9rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Withdrawable
+                            Balance</span>
+                        <div style="font-size: 2.5rem; font-weight: 800; margin: 0.5rem 0; color: #111827;">₹<span
+                                id="withdrawableBalance">0</span></div>
                         <span style="font-size: 0.8rem; color: #10B981; font-weight: 600;">Available for payout</span>
                     </div>
                 </div>
 
                 <div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
-                    <h3 style="margin-bottom: 1.5rem; font-size: 1.1rem; color: #374151;">Earnings Overview (Last 7 Days)</h3>
+                    <h3 style="margin-bottom: 1.5rem; font-size: 1.1rem; color: #374151;">Earnings Overview (Last 7
+                        Days)</h3>
                     <div style="height: 300px;">
                         <canvas id="earningsChart"></canvas>
                     </div>
@@ -682,10 +737,18 @@ $my_jobs = $stmt->fetchAll();
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #F9FAFB; text-align: left;">
-                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Date</th>
-                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Amount</th>
-                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Bank Details</th>
-                                    <th style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">Status</th>
+                                    <th
+                                        style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">
+                                        Date</th>
+                                    <th
+                                        style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">
+                                        Amount</th>
+                                    <th
+                                        style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">
+                                        Bank Details</th>
+                                    <th
+                                        style="padding: 1rem; font-size: 0.85rem; color: #6B7280; font-weight: 600; border-bottom: 1px solid #E5E7EB;">
+                                        Status</th>
                                 </tr>
                             </thead>
                             <tbody id="withdrawHistory">
@@ -697,25 +760,41 @@ $my_jobs = $stmt->fetchAll();
             </div>
 
             <!-- Withdraw Modal -->
-            <div id="withdrawModal" class="chat-modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
-                <div style="background: white; width: 450px; padding: 2rem; border-radius: 16px; position: relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
-                    <span class="material-icons" style="position: absolute; right: 1.5rem; top: 1.5rem; cursor: pointer; color: #9CA3AF;" onclick="closeWithdrawModal()">close</span>
+            <div id="withdrawModal" class="chat-modal-overlay"
+                style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+                <div
+                    style="background: white; width: 450px; padding: 2rem; border-radius: 16px; position: relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+                    <span class="material-icons"
+                        style="position: absolute; right: 1.5rem; top: 1.5rem; cursor: pointer; color: #9CA3AF;"
+                        onclick="closeWithdrawModal()">close</span>
                     <h2 style="margin-bottom: 0.5rem; color: #111827;">Withdraw Funds</h2>
-                    <p style="font-size: 0.9rem; color: #6B7280; margin-bottom: 1.5rem;">Transfer your earnings to your bank account.</p>
-                    
+                    <p style="font-size: 0.9rem; color: #6B7280; margin-bottom: 1.5rem;">Transfer your earnings to your
+                        bank account.</p>
+
                     <form id="withdrawForm">
                         <div class="input-group">
-                            <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Withdrawal Amount (₹)</label>
-                            <input type="number" id="withdrawAmount" name="amount" required placeholder="Enter amount..." style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 1.1rem; font-weight: 700;">
-                            <small style="color: #6B7280; margin-top: 0.5rem; display: block;">Max withdrawable: ₹<span id="maxWithdraw">0</span></small>
+                            <label
+                                style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Withdrawal
+                                Amount (₹)</label>
+                            <input type="number" id="withdrawAmount" name="amount" required
+                                placeholder="Enter amount..."
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 1.1rem; font-weight: 700;">
+                            <small style="color: #6B7280; margin-top: 0.5rem; display: block;">Max withdrawable: ₹<span
+                                    id="maxWithdraw">0</span></small>
                         </div>
-                        
+
                         <div class="input-group">
-                            <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Bank Account / UPI Details</label>
-                            <textarea name="bank_details" required placeholder="Enter your Bank Name, A/c Number, IFSC or UPI ID..." style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; height: 100px; resize: none;"></textarea>
+                            <label
+                                style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Bank
+                                Account / UPI Details</label>
+                            <textarea name="bank_details" required
+                                placeholder="Enter your Bank Name, A/c Number, IFSC or UPI ID..."
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #D1D5DB; border-radius: 8px; height: 100px; resize: none;"></textarea>
                         </div>
-                        
-                        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-weight: 700; background: #0F172A; border: none; font-size: 1rem; margin-top: 1rem;">Process Payout</button>
+
+                        <button type="submit" class="btn btn-primary"
+                            style="width: 100%; padding: 1rem; font-weight: 700; background: #0F172A; border: none; font-size: 1rem; margin-top: 1rem;">Process
+                            Payout</button>
                     </form>
                 </div>
             </div>
@@ -1081,16 +1160,16 @@ $my_jobs = $stmt->fetchAll();
                 method: 'POST',
                 body: formData
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    closeWithdrawModal();
-                    loadEarnings();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        closeWithdrawModal();
+                        loadEarnings();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
         });
     </script>
 </body>

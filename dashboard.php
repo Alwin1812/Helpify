@@ -13,9 +13,22 @@ $user_id = $_SESSION['user_id'];
 $stmt = $pdo->query("SELECT * FROM services");
 $services = $stmt->fetchAll();
 
-// Fetch Recent Bookings
+// Fetch Total Helpers
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'helper'");
+$total_helpers_count = $stmt->fetchColumn();
+
+// Fetch Recent Bookings with applicant count and potential matching pros
 $stmt = $pdo->prepare("
-    SELECT b.*, s.name as service_name, h.name as helper_name 
+    SELECT b.*, s.name as service_name, h.name as helper_name,
+    (SELECT COUNT(*) FROM booking_requests WHERE booking_id = b.id AND status = 'accepted') as applicant_count,
+    (SELECT COUNT(*) FROM users u 
+     WHERE u.role = 'helper' 
+     AND (u.gender = b.preferred_gender OR b.preferred_gender = 'Any')
+     AND (
+         u.job_role LIKE CONCAT('%', SUBSTRING_INDEX(s.name, ' ', 1), '%')
+         OR s.name LIKE CONCAT('%', u.job_role, '%')
+     )
+    ) as potential_matches
     FROM bookings b 
     JOIN services s ON b.service_id = s.id 
     LEFT JOIN users h ON b.helper_id = h.id 
@@ -41,6 +54,21 @@ $reviewed_bookings = $stmt->fetchAll(PDO::FETCH_COLUMN);
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user_details = $stmt->fetch();
+
+// Fallback for user details to prevent crashes
+if (!$user_details) {
+    $user_details = [
+        'last_lat' => 20.5937,
+        'last_lng' => 78.9629,
+        'wallet_balance' => 0,
+        'is_plus_member' => 0,
+        'profile_photo' => null,
+        'email' => '',
+        'phone_number' => '',
+        'gender' => '',
+        'address' => ''
+    ];
+}
 
 // Pre-load Bundle if requested
 $bundle_to_load = null;
@@ -78,7 +106,7 @@ $all_bundles = $stmt->fetchAll();
         .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
+            z-index: 3000;
             left: 0;
             top: 0;
             width: 100%;
@@ -354,6 +382,68 @@ $all_bundles = $stmt->fetchAll();
             background: #e2e8f0;
             color: #0F172A;
         }
+
+        /* Tracking Map Pulse Animation */
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            background-color: #2563EB;
+            border-radius: 50%;
+            z-index: 1;
+            animation: pulse-animation 2s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% {
+                width: 16px;
+                height: 16px;
+                opacity: 0.6;
+            }
+
+            100% {
+                width: 50px;
+                height: 50px;
+                opacity: 0;
+            }
+        }
+
+        @keyframes pulse-search {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse-dot {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+        }
     </style>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
@@ -455,6 +545,11 @@ $all_bundles = $stmt->fetchAll();
                         }));
                         ?></div>
                         <span style="color: var(--text-light); font-size: 0.9rem;">Lifetime</span>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Pros Available</h3>
+                        <div class="stat-value" style="color: #10B981;"><?php echo $total_helpers_count; ?></div>
+                        <span style="color: var(--text-light); font-size: 0.9rem;">Verified nearby</span>
                     </div>
                     <div class="stat-card" onclick="showSection('wallet')" style="cursor: pointer;">
                         <h3>Wallet Balance</h3>
@@ -688,9 +783,14 @@ $all_bundles = $stmt->fetchAll();
                                 <div style="color: var(--primary-color); font-weight: 700; margin-bottom: 1rem;">
                                     From ₹<?php echo $service['base_price']; ?>
                                 </div>
-                                <div id="action-container-parent-<?php echo $service['id']; ?>">
-                                    <button class="btn btn-primary btn-block"
-                                        onclick="openBookingModal('<?php echo $service['id']; ?>', '<?php echo htmlspecialchars($service['name'], ENT_QUOTES); ?>', <?php echo $service['base_price']; ?>)">Book</button>
+                                <div id="action-container-parent-<?php echo $service['id']; ?>"
+                                    style="display: flex; gap: 8px;">
+                                    <button class="btn btn-primary" style="flex: 1;"
+                                        onclick="openBookingModal('<?php echo $service['id']; ?>', <?php echo htmlspecialchars(json_encode($service['name']), ENT_QUOTES); ?>, <?php echo $service['base_price']; ?>)">Book</button>
+                                    <button class="btn btn-outline" style="padding: 0.5rem;" title="Add to Cart"
+                                        onclick="addToCart('<?php echo $service['id']; ?>', <?php echo htmlspecialchars(json_encode($service['name']), ENT_QUOTES); ?>, <?php echo $service['base_price']; ?>)">
+                                        <span class="material-icons">add_shopping_cart</span>
+                                    </button>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -764,12 +864,25 @@ $all_bundles = $stmt->fetchAll();
                                 </div>
                             </div>
                         </div>
-                        <input type="hidden" name="num_days" id="numDaysInput" value="1">
-                        <div
-                            style="text-align: right; color: var(--text-light); font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem;">
-                            Total Days: <span id="displayNumDays"
-                                style="font-weight: 700; color: var(--primary-color);">1</span>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: end;">
+                            <div class="input-group">
+                                <label
+                                    style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Preferred
+                                    Gender</label>
+                                <select name="preferred_gender" class="form-control"
+                                    style="padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #CBD5E1; width: 100%; box-sizing: border-box; color: #0F172A; background-color: #fff; appearance: auto;">
+                                    <option value="Any">Any</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                            <div
+                                style="text-align: right; color: var(--text-light); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                                Total Days: <span id="displayNumDays"
+                                    style="font-weight: 700; color: var(--primary-color);">1</span>
+                            </div>
                         </div>
+                        <input type="hidden" name="num_days" id="numDaysInput" value="1">
                         <div class="input-group">
                             <label
                                 style="font-size: 0.9rem; color: #64748B; font-weight: 600; margin-bottom: 0.5rem; display: block;">Time</label>
@@ -961,24 +1074,60 @@ $all_bundles = $stmt->fetchAll();
                                                 <?php endif; ?>
                                             </div>
                                         <?php else: ?>
-                                            <div class="bc-avatar" style="background: #fdf2f8; color: #db2777;">
-                                                <span class="material-icons">hourglass_empty</span>
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-light);">Finding
-                                                    a pro...</div>
-                                                <?php if ($booking['status'] === 'pending'): ?>
-                                                    <div style="font-size: 0.8rem; color: var(--text-light);">We will notify you soon.
+                                            <?php if ($booking['applicant_count'] > 0): ?>
+                                                <div class="bc-avatar" style="background: #ECFDF5; color: #10B981;">
+                                                    <span class="material-icons">people</span>
+                                                </div>
+                                                <div>
+                                                    <div style="font-weight: 700; font-size: 1rem; color: #059669;">
+                                                        <?php echo $booking['applicant_count']; ?> Helper(s) interested!
                                                     </div>
-                                                <?php endif; ?>
-                                            </div>
+                                                    <div style="font-size: 0.85rem; color: #666; margin-top: 2px;">
+                                                        <a href="#"
+                                                            onclick="fetchApplicants(<?php echo $booking['id']; ?>); return false;"
+                                                            style="color: #10B981; font-weight: 700; text-decoration: underline;">Review
+                                                            & Accept Pro</a>
+                                                    </div>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="bc-avatar" style="background: #fdf2f8; color: #db2777; position: relative;">
+                                                    <span class="material-icons"
+                                                        style="animation: pulse-search 2s infinite;">hourglass_empty</span>
+                                                    <div
+                                                        style="position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; background: #DB2777; border: 2px solid white; border-radius: 50%; animation: pulse-dot 1.5s infinite;">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <div style="font-weight: 600; font-size: 0.95rem; color: #DB2777;">Finding a pro...
+                                                    </div>
+                                                    <?php if ($booking['status'] === 'pending' || $booking['status'] === 'accepted'): ?>
+                                                        <div style="font-size: 0.8rem; color: var(--text-light);">
+                                                            <?php if ($booking['potential_matches'] > 0): ?>
+                                                                <b style="color: #6366F1;"><?php echo $booking['potential_matches']; ?> matching
+                                                                    pros</b> notified nearby.
+                                                            <?php else: ?>
+                                                                We'll notify pros matching your request soon.
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                     <div
                                         style="text-align: right; font-size: 0.85rem; color: var(--text-light); max-width: 200px;">
-                                        <span class="material-icons"
-                                            style="font-size: 14px; vertical-align: middle;">location_on</span>
-                                        <?php echo htmlspecialchars($booking['location'] ?? 'No location provided'); ?>
+                                        <div style="margin-bottom: 4px;">
+                                            <span class="material-icons"
+                                                style="font-size: 14px; vertical-align: middle;">location_on</span>
+                                            <?php echo htmlspecialchars($booking['location'] ?? 'No location provided'); ?>
+                                        </div>
+                                        <?php if ($booking['preferred_gender'] && $booking['preferred_gender'] !== 'Any'): ?>
+                                            <div style="color: #DB2777; font-weight: 600; font-size: 0.8rem;">
+                                                <span class="material-icons"
+                                                    style="font-size: 14px; vertical-align: middle;">wc</span>
+                                                Pref: <?php echo $booking['preferred_gender']; ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
 
@@ -1019,15 +1168,15 @@ $all_bundles = $stmt->fetchAll();
                                     <div class="bc-actions">
                                         <?php if ($booking['helper_id'] && in_array($booking['status'], ['accepted', 'confirmed', 'in-progress'])): ?>
                                             <button class="chat-btn"
-                                                onclick="openChat('<?php echo $booking['id']; ?>', '<?php echo $booking['helper_id']; ?>', '<?php echo htmlspecialchars($booking['helper_name']); ?>')">
+                                                onclick="openChat('<?php echo $booking['id']; ?>', '<?php echo $booking['helper_id']; ?>', <?php echo htmlspecialchars(json_encode($booking['helper_name']), ENT_QUOTES); ?>)">
                                                 <span class="material-icons" style="font-size: 18px;">chat</span>
                                                 Chat
                                             </button>
                                         <?php endif; ?>
-                                        <?php if (in_array($booking['status'], ['in-progress'])): ?>
+                                        <?php if (in_array($booking['status'], ['confirmed', 'in-progress'])): ?>
                                             <button class="chat-btn"
                                                 style="background: #eff6ff; color: #2563eb; border-color: #bfdbfe;"
-                                                onclick="startTracking('<?php echo $booking['helper_id']; ?>', '<?php echo htmlspecialchars($booking['helper_name'] ?? 'Helper'); ?>', '<?php echo $user_details['last_lat'] ?? 20.5937; ?>', '<?php echo $user_details['last_lng'] ?? 78.9629; ?>')">
+                                                onclick="startTracking('<?php echo $booking['helper_id']; ?>', <?php echo htmlspecialchars(json_encode($booking['helper_name'] ?? 'Helper'), ENT_QUOTES); ?>, <?php echo json_encode((float) ($user_details['last_lat'] ?: 20.5937)); ?>, <?php echo json_encode((float) ($user_details['last_lng'] ?: 78.9629)); ?>)">
                                                 <span class="material-icons" style="font-size: 18px;">my_location</span>
                                                 Track
                                             </button>
@@ -1046,13 +1195,14 @@ $all_bundles = $stmt->fetchAll();
                                             </a>
                                         <?php endif; ?>
                                         <?php if (!in_array($booking['status'], ['cancelled'])): ?>
-                                            <button class="chat-btn" style="color: #ef4444; border-color: #fecaca;"
-                                                onclick="openComplaintModal('<?php echo $booking['id']; ?>', '<?php echo htmlspecialchars($booking['service_name']); ?>')">
+                                            <button class="chat-btn"
+                                                style="background: #fef2f2; color: #ef4444; border-color: #fecaca;"
+                                                onclick="openComplaintModal('<?php echo $booking['id']; ?>', <?php echo htmlspecialchars(json_encode($booking['service_name']), ENT_QUOTES); ?>)">
                                                 <span class="material-icons" style="font-size: 18px;">report_problem</span>
                                                 Report
                                             </button>
                                         <?php endif; ?>
-                                        <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
+                                        <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed' || $booking['status'] == 'accepted'): ?>
                                             <form action="api/booking_action.php" method="POST" style="margin: 0;"
                                                 onsubmit="return confirm('Are you sure you want to cancel this booking?');">
                                                 <input type="hidden" name="action" value="cancel">
@@ -1195,6 +1345,20 @@ $all_bundles = $stmt->fetchAll();
                         <h4 style="margin-bottom: 0.5rem;">Dedicated Support</h4>
                         <p style="font-size: 0.85rem; color: #6B7280;">Direct line to our premium support team for
                             instant resolution.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Applicants Modal -->
+            <div id="applicantsModal" class="modal">
+                <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+                    <span class="close" onclick="closeApplicantsModal()">&times;</span>
+                    <h2 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px;">
+                        <span class="material-icons" style="color: #10B981;">people</span>
+                        Helper Applications
+                    </h2>
+                    <div id="applicantsList">
+                        <!-- Loaded via JS -->
                     </div>
                 </div>
             </div>
@@ -1395,10 +1559,13 @@ $all_bundles = $stmt->fetchAll();
                         <div style="padding: 1rem;">
                             <h4 style="font-size: 1.1rem; margin-bottom: 0.25rem;">${s.name}</h4>
                             <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.4;">${s.description || ''}</p>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: auto; gap: 8px;">
                                 <div style="font-weight: 700; color: var(--primary-color); font-size: 1rem;">₹${s.base_price}</div>
-                                <div id="action-container-sub-${s.id}">
+                                <div id="action-container-sub-${s.id}" style="display: flex; gap: 6px;">
                                     <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;" onclick="openBookingModal('${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.base_price})">Book</button>
+                                    <button class="btn btn-outline" style="padding: 0.3rem 0.6rem;" onclick="addToCart('${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.base_price})">
+                                        <span class="material-icons" style="font-size: 18px;">add_shopping_cart</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1413,10 +1580,15 @@ $all_bundles = $stmt->fetchAll();
             categoryModal.style.display = 'none';
         }
 
-        let cart = [];
+        let cart = JSON.parse(localStorage.getItem('helpify_cart')) || [];
         let currentModalBasePrice = 0;
         let cartBaseTotal = 0;
         let activePromo = null;
+
+        // Initialize cart UI on load
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCartUI();
+        });
 
         async function applyPromoCode() {
             const codeInput = document.getElementById('promoCodeInput').value.trim();
@@ -1589,9 +1761,15 @@ $all_bundles = $stmt->fetchAll();
                 addToCartBtn.style.display = 'none';
                 submitBtn.innerText = "Checkout All Items";
                 document.getElementById('modalServiceId').value = '';
+                // Ensure cart hidden inputs are correctly populated for checkout
+                updateCartUI();
                 const daysInput = document.getElementById('numDaysInput');
                 if (daysInput) daysInput.value = 1;
-                updateCartUI();
+            }
+
+            if (id) {
+                // Clear any leftover cart hidden inputs in the form when in single-service mode
+                document.getElementById('cartHiddenInputs').innerHTML = '';
             }
 
             bookingModal.style.display = 'block';
@@ -1614,6 +1792,7 @@ $all_bundles = $stmt->fetchAll();
         function addToCart(serviceId, serviceName, basePrice) {
             cart.push({ id: serviceId, name: serviceName, price: parseFloat(basePrice) });
             updateCartUI();
+            alert(`${serviceName} added to cart!`);
         }
 
         function removeFromCart(index) {
@@ -1622,6 +1801,7 @@ $all_bundles = $stmt->fetchAll();
         }
 
         function updateCartUI() {
+            localStorage.setItem('helpify_cart', JSON.stringify(cart));
             document.getElementById('cartCountBadge').innerText = cart.length;
 
             const container = document.getElementById('cartItemsContainer');
@@ -1752,6 +1932,26 @@ $all_bundles = $stmt->fetchAll();
                     }
                 })
                 .catch(error => console.error('Error reverse geocoding:', error));
+        }
+
+        function fetchApplicants(bookingId) {
+            const list = document.getElementById('applicantsList');
+            list.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">Loading applications...</p>';
+            document.getElementById('applicantsModal').style.display = 'block';
+
+            fetch(`api/booking_action.php?action=get_applicants&booking_id=${bookingId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showApplicants(data.applicants, bookingId);
+                    } else {
+                        list.innerHTML = `<p style="text-align: center; color: #EF4444; padding: 2rem;">${data.message || "Failed to load applicants."}</p>`;
+                    }
+                })
+                .catch(e => {
+                    console.error("Error fetching applicants:", e);
+                    list.innerHTML = '<p style="text-align: center; color: #EF4444; padding: 2rem;">An error occurred while loading applicants.</p>';
+                });
         }
 
         function closeApplicantsModal() {
@@ -2419,51 +2619,93 @@ $all_bundles = $stmt->fetchAll();
         let trackingInterval;
 
         function startTracking(helperId, helperName, userLat, userLng) {
+            console.log("Track initiated:", { helperId, helperName, userLat, userLng });
             document.getElementById('trackHelperName').textContent = helperName;
             document.getElementById('trackingModal').style.display = 'block';
+            document.getElementById('trackLastUpdated').textContent = "Connecting to GPS...";
 
+            // Robust map initialization
             setTimeout(() => {
                 if (!trackingMap) {
-                    trackingMap = L.map('trackingMap').setView([userLat, userLng], 13);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; OpenStreetMap'
-                    }).addTo(trackingMap);
-                    userMarker = L.marker([userLat, userLng]).addTo(trackingMap).bindPopup("Service Location").openPopup();
+                    try {
+                        trackingMap = L.map('trackingMap', {
+                            zoomControl: true,
+                            dragging: true
+                        }).setView([userLat, userLng], 15);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap'
+                        }).addTo(trackingMap);
+                    } catch (e) {
+                        console.error("Leaflet initialization failed:", e);
+                    }
                 } else {
-                    trackingMap.setView([userLat, userLng], 13);
-                    userMarker.setLatLng([userLat, userLng]);
                     trackingMap.invalidateSize();
                 }
 
-                updateHelperPos(helperId);
+                // Reset and place User Marker
+                if (userMarker) trackingMap.removeLayer(userMarker);
+                userMarker = L.marker([userLat, userLng], {
+                    icon: L.divIcon({
+                        className: 'user-location-marker',
+                        html: '<div style="background:#EF4444; width:12px; height:12px; border-radius:50%; border:2px solid white; box-shadow:0 0 5px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    })
+                }).addTo(trackingMap).bindPopup("<b>Service Location</b>").openPopup();
+
+                // Clear old helper marker
+                if (helperMarker) {
+                    trackingMap.removeLayer(helperMarker);
+                    helperMarker = null;
+                }
+
+                // Initial fetch and zoom
+                updateHelperPos(helperId, true);
+
                 if (trackingInterval) clearInterval(trackingInterval);
-                trackingInterval = setInterval(() => updateHelperPos(helperId), 15000);
-            }, 200);
+                trackingInterval = setInterval(() => updateHelperPos(helperId, false), 10000);
+            }, 300);
         }
 
-        function updateHelperPos(helperId) {
+        function updateHelperPos(helperId, isFirstRun) {
             fetch(`api/get_helper_location.php?helper_id=${helperId}`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data.success) {
-                        const {
-                            last_lat,
-                            last_lng
-                        } = data.location;
+                    if (data.success && data.location.last_lat) {
+                        const hLat = parseFloat(data.location.last_lat);
+                        const hLng = parseFloat(data.location.last_lng);
+
                         if (!helperMarker) {
-                            helperMarker = L.circleMarker([last_lat, last_lng], {
-                                radius: 10,
-                                fillColor: "#2563EB",
-                                color: "#fff",
-                                weight: 2,
-                                opacity: 1,
-                                fillOpacity: 0.8
-                            }).addTo(trackingMap).bindPopup("Helper is here");
+                            // Create helper marker with Pulse effect
+                            helperMarker = L.marker([hLat, hLng], {
+                                icon: L.divIcon({
+                                    className: 'helper-pulse-marker',
+                                    html: `
+                                        <div class="pulse-ring"></div>
+                                        <div style="background:#2563EB; width:16px; height:16px; border-radius:50%; border:3px solid white; position:relative; z-index:2; box-shadow:0 0 10px rgba(37,99,235,0.5);"></div>
+                                    `,
+                                    iconSize: [20, 20],
+                                    iconAnchor: [10, 10]
+                                })
+                            }).addTo(trackingMap).bindPopup("<b>Helper is on the way!</b>");
                         } else {
-                            helperMarker.setLatLng([last_lat, last_lng]);
+                            helperMarker.setLatLng([hLat, hLng]);
                         }
-                        document.getElementById('trackLastUpdated').textContent = new Date().toLocaleTimeString();
+
+                        // Auto-adjust zoom to see both if it's the first run or if they are moving
+                        if (isFirstRun && userMarker) {
+                            const bounds = L.latLngBounds([userMarker.getLatLng(), helperMarker.getLatLng()]);
+                            trackingMap.fitBounds(bounds.pad(0.4), { animate: true });
+                        }
+
+                        document.getElementById('trackLastUpdated').textContent = "Live • " + new Date().toLocaleTimeString();
+                    } else {
+                        document.getElementById('trackLastUpdated').textContent = "Waiting for Helper signal...";
                     }
+                })
+                .catch(err => {
+                    console.error("Tracking error:", err);
+                    document.getElementById('trackLastUpdated').textContent = "Connection lost. Retrying...";
                 });
         }
 
@@ -2474,6 +2716,7 @@ $all_bundles = $stmt->fetchAll();
 
         // Complaint Logic
         function openComplaintModal(bookingId, serviceName) {
+            console.log("Report initiated:", { bookingId, serviceName });
             document.getElementById('complaintBookingId').value = bookingId;
             document.getElementById('complaintBookingInfo').textContent = "Reporting issue for: " + serviceName + " (#" + bookingId + ")";
             document.getElementById('complaintModal').style.display = 'block';
@@ -2643,73 +2886,75 @@ $all_bundles = $stmt->fetchAll();
 
         window.addEventListener('load', function () {
             <?php if (isset($bundle_to_load) && !empty($bundle_to_load)): ?>
-            console.log('Bundle detected:', <?php echo json_encode($bundle_to_load); ?>);
-            // Clear existing cart
-            cart = [];
+                console.log('Bundle detected:', <?php echo json_encode($bundle_to_load); ?>);
+                // Clear existing cart
+                cart = [];
 
-            // Load bundle items
-            <?php foreach ($bundle_to_load as $item): ?>
-            cart.push({
-                id: <?php echo $item['service_id']; ?>,
-                name: '<?php echo addslashes($item['service_name']); ?>',
-                price: <?php echo $item['base_price']; ?>
-            });
-            <?php endforeach; ?>
+                // Load bundle items
+                <?php foreach ($bundle_to_load as $item): ?>
+                    cart.push({
+                        id: <?php echo $item['service_id']; ?>,
+                        name: '<?php echo addslashes($item['service_name']); ?>',
+                        price: <?php echo $item['base_price']; ?>
+                    });
+                <?php endforeach; ?>
 
-            // Set discount if applicable
-            const discountPct = <?php echo $bundle_to_load[0]['discount_percentage']; ?>;
-            if (discountPct > 0) {
-                activePromo = {
-                    discount_type: 'percentage',
-                    discount_value: discountPct,
-                    min_order_amount: 0,
-                    code: 'BUNDLE_DISCOUNT'
-                };
-            }
+                // Set discount if applicable
+                const discountPct = <?php echo $bundle_to_load[0]['discount_percentage']; ?>;
+                if (discountPct > 0) {
+                    activePromo = {
+                        discount_type: 'percentage',
+                        discount_value: discountPct,
+                        min_order_amount: 0,
+                        code: 'BUNDLE_DISCOUNT'
+                    };
+                }
 
-            updateCartUI();
-            openBookingModal();
+                updateCartUI();
+                openBookingModal();
             <?php endif; ?>
         });
     </script>
     <!-- AI Concierge Floating Button -->
     <div id="aiConciergeBtn"
-        style="position: fixed; bottom: 85px; right: 25px; width: 60px; height: 60px; background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 15px rgba(109, 40, 217, 0.4); z-index: 1510; transition: transform 0.2s;">
-        <span class="material-icons" style="font-size: 30px;">smart_toy</span>
+        style="position: fixed; bottom: 30px; right: 30px; width: 65px; height: 65px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4); z-index: 2100; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <span class="material-icons" style="font-size: 35px;">smart_toy</span>
     </div>
 
     <!-- AI Concierge Modal -->
     <div id="aiConciergeOverlay" class="chat-modal-overlay"
-        style="display: none; height: 450px; bottom: 160px; flex-direction: column;">
-        <div class="chat-header" style="background: linear-gradient(90deg, #6D28D9, #8B5CF6);">
-            <h4 style="margin: 0; color: white; display: flex; align-items: center; gap: 8px;"><span
-                    class="material-icons">smart_toy</span> AI Concierge</h4>
-            <span class="material-icons close-chat" onclick="toggleAIConcierge()" style="cursor: pointer;">close</span>
+        style="display: none; height: 520px; bottom: 110px; right: 30px; flex-direction: column; overflow: hidden;">
+        <div class="chat-header" style="background: linear-gradient(135deg, #059669 0%, #10B981 100%);">
+            <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;"><span
+                    class="material-icons">smart_toy</span> Helpify AI Concierge</h4>
+            <span class="material-icons close-chat" onclick="toggleAIConcierge()">close</span>
         </div>
-        <div id="aiChatMessages" class="chat-messages"
-            style="background: #F5F3FF; flex: 1; min-height: 250px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 10px;">
-            <div class="message-bubble received"
-                style="background: white; padding: 10px; border-radius: 12px; border: 1px solid #E9D5FF; align-self: flex-start; max-width: 85%;">
-                Hello! I'm your Helpify Concierge. How can I help you today?
-                <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;">
-                    <button onclick="sendAIQuery('I need cleaning')"
-                        style="background: #F3E8FF; border: 1px solid #D8B4FE; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #6D28D9; font-weight: 600;">Cleaning</button>
-                    <button onclick="sendAIQuery('What are the bundles?')"
-                        style="background: #F3E8FF; border: 1px solid #D8B4FE; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #6D28D9; font-weight: 600;">Bundles</button>
-                    <button onclick="sendAIQuery('I need a cook')"
-                        style="background: #F3E8FF; border: 1px solid #D8B4FE; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #6D28D9; font-weight: 600;">Book
-                        a Cook</button>
-                    <button onclick="sendAIQuery('Need repairs')"
-                        style="background: #F3E8FF; border: 1px solid #D8B4FE; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #6D28D9; font-weight: 600;">Repairs</button>
-                    </div>
+        <div id="aiChatMessages" class="chat-messages">
+            <div class="message-bubble received">
+                Hello there, <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b>! ✨<br>
+                How can I sparkle your home today? I can find services, explain bundles, or check your balance!
+                <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;">
+                    <button class="quick-reply-btn" onclick="sendAIQuery('I need cleaning')">
+                        <span class="material-icons" style="font-size:16px;">cleaning_services</span> Cleaning
+                    </button>
+                    <button class="quick-reply-btn" onclick="sendAIQuery('What are my deals?')">
+                        <span class="material-icons" style="font-size:16px;">local_offer</span> Deals
+                    </button>
+                    <button class="quick-reply-btn" onclick="sendAIQuery('Check my balance')">
+                        <span class="material-icons" style="font-size:16px;">account_balance_wallet</span> Wallet
+                    </button>
+                </div>
+            </div>
+            <div id="typingIndicator" class="typing-indicator" style="display: none;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
             </div>
         </div>
-        <div class="chat-input-area" style="padding: 1rem; border-top: 1px solid #E9D5FF; display: flex; gap: 8px;">
-            <input type="text" id="aiInput" placeholder="Ask about cleaning, repairs..."
-                style="flex: 1; border: 1px solid #DDD6FE; border-radius: 20px; padding: 8px 16px; outline: none; background: white;"
+        <div class="chat-input-area">
+            <input type="text" id="aiInput" placeholder="Ask me anything..."
                 onkeypress="if(event.key === 'Enter') sendAIChat()">
-            <button onclick="sendAIChat()"
-                style="background: #6D28D9; color: white; border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <button class="chat-send-btn" onclick="sendAIChat()">
                 <span class="material-icons">send</span>
             </button>
         </div>
@@ -2739,6 +2984,12 @@ $all_bundles = $stmt->fetchAll();
             addAIMessage(query, 'sent');
             input.value = '';
 
+            // Show typing indicator
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = 'flex';
+            const container = document.getElementById('aiChatMessages');
+            container.scrollTop = container.scrollHeight;
+
             try {
                 const res = await fetch('api/ai_concierge.php', {
                     method: 'POST',
@@ -2747,63 +2998,68 @@ $all_bundles = $stmt->fetchAll();
                 });
                 const data = await res.json();
 
+                // Realistic delay
+                await new Promise(r => setTimeout(r, 600));
+                indicator.style.display = 'none';
+
                 let html = data.text;
                 if (data.recommendations && data.recommendations.length > 0) {
-                    html += '<div style="margin-top: 12px; border-top: 1px dashed #D8B4FE; padding-top: 10px;">';
+                    html += '<div style="margin-top: 12px; border-top: 1px dashed var(--chat-secondary); padding-top: 10px;">';
                     data.recommendations.forEach(rec => {
+                        let actionHtml = '';
+                        let label = '';
+                        let icon = 'arrow_forward';
+
                         if (rec.type === 'service') {
-                            html += `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: #FAF5FF; padding: 10px; border-radius: 10px; margin-bottom: 6px; border: 1px solid #E9D5FF;">
-                                    <div style="display: flex; flex-direction: column;">
-                                        <span style="font-size: 0.85rem; font-weight: 700; color: #5B21B6;">${rec.name}</span>
-                                        <span style="font-size: 0.75rem; color: #7C3AED;">Starts at ₹${rec.price}</span>
-                                    </div>
-                                    <button onclick="openBookingModal('${rec.id}', '${rec.name}', ${rec.price})" style="background: #7C3AED; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 600;">Book</button>
-                                </div>`;
+                            label = `Service • ₹${rec.price}`;
+                            actionHtml = `onclick="openBookingModal('${rec.id}', '${rec.name}', ${rec.price})"`;
                         } else if (rec.type === 'bundle') {
-                            html += `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: #ECFDF5; padding: 10px; border-radius: 10px; margin-bottom: 6px; border: 1px solid #A7F3D0;">
-                                    <div style="display: flex; flex-direction: column;">
-                                        <span style="font-size: 0.85rem; font-weight: 700; color: #065F46;">${rec.name} Bundle</span>
-                                        <span style="font-size: 0.75rem; color: #059669;">Special Discount</span>
-                                    </div>
-                                    <button onclick="toggleAIConcierge(); loadBundleAndBook(${rec.id})" style="background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 600;">Get Deal</button>
-                                </div>`;
+                            label = 'Bundle Offer';
+                            icon = 'card_giftcard';
+                            actionHtml = `onclick="loadBundleAndBook(${rec.id})"`;
                         } else if (rec.type === 'category') {
-                            html += `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: #FFF7ED; padding: 10px; border-radius: 10px; margin-bottom: 6px; border: 1px solid #FFEDD5;">
-                                    <div style="display: flex; flex-direction: column;">
-                                        <span style="font-size: 0.85rem; font-weight: 700; color: #9A3412;">${rec.name}</span>
-                                        <span style="font-size: 0.75rem; color: #C2410C;">Browse Department</span>
-                                    </div>
-                                    <button onclick="toggleAIConcierge(); openCategoryModal('${rec.id}', '${rec.name}')" style="background: #EA580C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 600;">Browse</button>
-                                </div>`;
+                            label = 'Department';
+                            actionHtml = `onclick="openCategoryModal('${rec.id}', '${rec.name}')"`;
                         }
+
+                        html += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--chat-secondary); box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-size: 0.85rem; font-weight: 700; color: #065F46;">${rec.name}</span>
+                                    <span style="font-size: 0.75rem; color: #059669;">${label}</span>
+                                </div>
+                                <button ${actionHtml} style="background: var(--chat-primary); color: white; border: none; padding: 8px 14px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                    Go <span class="material-icons" style="font-size:14px;">${icon}</span>
+                                </button>
+                            </div>`;
                     });
                     html += '</div>';
                 }
 
                 addAIMessage(html, 'received');
             } catch (err) {
-                addAIMessage("Sorry, I'm having trouble connecting to my brain right now.", 'received');
+                indicator.style.display = 'none';
+                addAIMessage("I'm resting right now. Visit us later! 😴", 'received');
             }
         }
 
         function addAIMessage(text, type) {
             const container = document.getElementById('aiChatMessages');
+            const indicator = document.getElementById('typingIndicator');
             const div = document.createElement('div');
             div.className = `message-bubble ${type}`;
-
-            if (type === 'sent') {
-                div.style = "align-self: flex-end; background: #7C3AED; color: white; padding: 10px 14px; border-radius: 18px 18px 2px 18px; max-width: 85%; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 5px;";
-            } else {
-                div.style = "align-self: flex-start; background: white; color: #1E293B; padding: 10px 14px; border-radius: 18px 18px 18px 2px; max-width: 85%; font-size: 0.9rem; border: 1px solid #E9D5FF; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 5px;";
-            }
-
             div.innerHTML = text;
-            container.appendChild(div);
+
+            container.insertBefore(div, indicator);
             container.scrollTop = container.scrollHeight;
         }
+        // Auto-refresh bookings status check logic
+        setInterval(() => {
+            if (document.getElementById('dashboard-section').style.display !== 'none') {
+                // If the user hasn't interacted for a while, we could reload
+                // For now, we'll keep it simple and just let the user know they can refresh.
+            }
+        }, 30000);
     </script>
 </body>
 

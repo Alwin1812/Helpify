@@ -206,6 +206,10 @@ unset($_SESSION['success']);
             </div>
         </div>
     </div>
+    <script>
+        // Clear cart after successful booking
+        localStorage.removeItem('helpify_cart');
+    </script>
 </body>
 
 </html>

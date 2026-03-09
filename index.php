@@ -688,21 +688,31 @@ session_start();
                     class="material-icons">smart_toy</span> Helpify AI Concierge</h4>
             <span class="material-icons close-chat" onclick="toggleAIConcierge()">close</span>
         </div>
-        <div id="aiChatMessages" class="chat-messages" style="background: #F0FDF4; flex: 1; padding: 1.2rem;">
+        <div id="aiChatMessages" class="chat-messages">
             <div class="message-bubble received">
-                Hi there! Welcome to Helpify. I can help you find the perfect service for your home. What are you
-                looking for today?
-                <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px;">
-                    <button onclick="sendAIQuery('I need cleaning')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Cleaning</button>
-                    <button onclick="sendAIQuery('What are your deals?')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Deals</button>
-                    <button onclick="sendAIQuery('Need repairs')" style="background: #DCFCE7; border: 1px solid #BBF7D0; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; color: #166534;">Repairs</button>
+                Hello! I'm your <b>Helpify Assistant</b>. How can I sparkle your day? ✨
+                <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;">
+                    <button class="quick-reply-btn" onclick="sendAIQuery('I need cleaning')">
+                        <span class="material-icons" style="font-size:16px;">cleaning_services</span> Cleaning
+                    </button>
+                    <button class="quick-reply-btn" onclick="sendAIQuery('What are your deals?')">
+                        <span class="material-icons" style="font-size:16px;">local_offer</span> Deals
+                    </button>
+                    <button class="quick-reply-btn" onclick="sendAIQuery('Need repairs')">
+                        <span class="material-icons" style="font-size:16px;">build</span> Repairs
+                    </button>
                 </div>
+            </div>
+            <div id="typingIndicator" class="typing-indicator" style="display: none;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
             </div>
         </div>
         <div class="chat-input-area">
-            <input type="text" id="aiInput" placeholder="Ask about maids, ac repair..."
+            <input type="text" id="aiInput" placeholder="Ask me anything..."
                 onkeypress="if(event.key === 'Enter') sendAIChat()">
-            <button class="chat-send-btn" onclick="sendAIChat()" style="background: #10B981;">
+            <button class="chat-send-btn" onclick="sendAIChat()">
                 <span class="material-icons">send</span>
             </button>
         </div>
@@ -728,6 +738,12 @@ session_start();
 
             addAIMessage(query, 'sent');
             input.value = '';
+            
+            // Show typing indicator
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = 'flex';
+            const container = document.getElementById('aiChatMessages');
+            container.scrollTop = container.scrollHeight;
 
             try {
                 const res = await fetch('api/ai_concierge.php', {
@@ -736,19 +752,26 @@ session_start();
                     body: JSON.stringify({ query })
                 });
                 const data = await res.json();
+                
+                // Keep typing indicator for a realistic feel
+                await new Promise(r => setTimeout(r, 600));
+                indicator.style.display = 'none';
 
                 let html = data.text;
                 if (data.recommendations && data.recommendations.length > 0) {
-                    html += '<div style="margin-top: 10px; border-top: 1px dashed #BBF7D0; padding-top: 10px;">';
+                    html += '<div style="margin-top: 12px; border-top: 1px dashed var(--chat-secondary); padding-top: 10px;">';
                     data.recommendations.forEach(rec => {
                         const label = rec.type === 'bundle' ? 'Bundle Offer' : (rec.type === 'category' ? 'Department' : 'Service');
+                        const icon = rec.type === 'bundle' ? 'card_giftcard' : 'arrow_forward';
                         html += `
-                            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px; border-radius: 12px; margin-bottom: 8px; border: 1px solid #BBF7D0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px; border-radius: 12px; margin-bottom: 8px; border: 1px solid var(--chat-secondary); box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
                                 <div style="display: flex; flex-direction: column;">
                                     <span style="font-size: 0.85rem; font-weight: 700; color: #065F46;">${rec.name}</span>
                                     <span style="font-size: 0.75rem; color: #059669;">${label}</span>
                                 </div>
-                                <a href="dashboard.php" style="background: #10B981; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; text-decoration: none; font-weight: 600;">Check Out</a>
+                                <a href="dashboard.php" style="background: var(--chat-primary); color: white; border: none; padding: 8px 14px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                    Go <span class="material-icons" style="font-size:14px;">${icon}</span>
+                                </a>
                             </div>`;
                     });
                     html += '</div>';
@@ -756,21 +779,20 @@ session_start();
 
                 addAIMessage(html, 'received');
             } catch (err) {
-                addAIMessage("I'm resting right now. Visit us later!", 'received');
+                indicator.style.display = 'none';
+                addAIMessage("I'm resting right now. Visit us later! 😴", 'received');
             }
         }
 
         function addAIMessage(text, type) {
             const container = document.getElementById('aiChatMessages');
+            const indicator = document.getElementById('typingIndicator');
             const div = document.createElement('div');
             div.className = `message-bubble ${type}`;
-            if (type === 'sent') {
-                div.style = "align-self: flex-end; background: #10B981; color: white; padding: 10px 14px; border-radius: 18px 18px 2px 18px; margin-bottom: 10px;";
-            } else {
-                div.style = "align-self: flex-start; background: white; color: #1E293B; padding: 10px 14px; border-radius: 18px 18px 18px 2px; margin-bottom: 10px; border: 1px solid #BBF7D0;";
-            }
             div.innerHTML = text;
-            container.appendChild(div);
+            
+            // Insert before typing indicator
+            container.insertBefore(div, indicator);
             container.scrollTop = container.scrollHeight;
         }
     </script>

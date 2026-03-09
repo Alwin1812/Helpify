@@ -41,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $num_days = isset($_POST['num_days']) ? max(1, (int) $_POST['num_days']) : 1;
         $promo_code = trim($_POST['promo_code'] ?? '');
         $recurrence_type = $_POST['recurrence_type'] ?? 'none';
+        $preferred_gender = $_POST['preferred_gender'] ?? 'Any';
         $is_subscription_active = ($recurrence_type !== 'none') ? 1 : 0;
 
         if (empty($service_ids) || empty($date)) {
@@ -105,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // 2. Find Matching Helpers (Keyword matching for assignment)
                 $keywords = [];
-                if (stripos($service_name, 'Clean') !== false || stripos($service_name, 'Maid') !== false)
+                if (stripos($service_name, 'Clean') !== false || stripos($service_name, 'Maid') !== false || stripos($service_name, 'InstaHelp') !== false)
                     $keywords = ['Maid', 'Cleaner', 'Housekeeper', 'Cleaning'];
                 elseif (stripos($service_name, 'Cook') !== false || stripos($service_name, 'Cooking') !== false)
                     $keywords = ['Cook', 'Chef', 'Cooking'];
@@ -120,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 elseif (stripos($service_name, 'RO ') !== false || stripos($service_name, 'Purifier') !== false)
                     $keywords = ['RO', 'Purifier', 'Water Service'];
                 elseif (stripos($service_name, 'Paint') !== false || stripos($service_name, 'Wall') !== false)
-                    $keywords = ['Painter', 'Painting', 'Wallpaper', 'Wall'];
+                    $keywords = ['Painter', 'Painting', 'Wallpaper', 'Wall', 'Revamp'];
 
                 $sql = "SELECT id FROM users WHERE role = 'helper'";
                 $params = [];
@@ -133,9 +134,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $sql .= " AND (" . implode(" OR ", $conditions) . ")";
                 } else {
-                    // Try to match the service name directly in the job_role
-                    $sql .= " AND job_role LIKE ?";
+                    $sql .= " AND (job_role LIKE ? OR job_role LIKE ?)";
                     $params[] = "%$service_name%";
+                    $params[] = "%" . trim($service_name) . "%";
+                }
+
+                if ($preferred_gender !== 'Any') {
+                    $sql .= " AND gender = ?";
+                    $params[] = $preferred_gender;
                 }
 
                 $stmt = $pdo->prepare($sql);
@@ -156,8 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmt = $pdo->prepare("
                     INSERT INTO bookings 
-                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, status, payment_method, num_days, total_amount, promo_code, discount_amount, platform_fee, start_otp, end_otp, recurrence_type, is_subscription_active) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (user_id, service_id, helper_id, date, end_date, time, location, budget, special_instructions, preferred_gender, status, payment_method, num_days, total_amount, promo_code, discount_amount, platform_fee, start_otp, end_otp, recurrence_type, is_subscription_active) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $user_id,
@@ -169,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $location,
                     $budget,
                     $instructions,
+                    $preferred_gender,
                     $status,
                     $payment_method,
                     $num_days,
@@ -449,34 +456,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     } elseif ($action === 'cancel') {
-        // ... (existing cancel logic)
         if ($role !== 'user') {
             $_SESSION['error'] = 'Unauthorized action.';
             header('Location: ../index.php');
             exit;
         }
+
         $booking_id = $_POST['booking_id'];
         try {
-            $stmt = $pdo->prepare("SELECT id, status, helper_id FROM bookings WHERE id = ? AND user_id = ?");
+            $pdo->beginTransaction();
+
+            $stmt = $pdo->prepare("SELECT id, status, helper_id, total_amount, payment_status, user_id FROM bookings WHERE id = ? AND user_id = ?");
             $stmt->execute([$booking_id, $user_id]);
             $booking = $stmt->fetch();
 
             if ($booking && in_array($booking['status'], ['pending', 'accepted', 'confirmed'])) {
+                // 1. Cancel the booking
                 $stmt = $pdo->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?");
                 $stmt->execute([$booking_id]);
 
-                if ($booking['helper_id']) {
-                    createNotification($pdo, $booking['helper_id'], "Booking #$booking_id has been cancelled by the user.", 'error');
+                $refund_msg = "";
+                // 2. Handle Refund if paid
+                if ($booking['payment_status'] === 'paid') {
+                    $refund_amount = (float) $booking['total_amount'];
+
+                    // Update User Wallet
+                    $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")
+                        ->execute([$refund_amount, $user_id]);
+
+                    // Log Transaction
+                    $pdo->prepare("INSERT INTO wallet_transactions (user_id, amount, type, description) VALUES (?, ?, 'credit', ?)")
+                        ->execute([$user_id, $refund_amount, "Refund for cancelled booking #$booking_id"]);
+
+                    // Update Booking Payment Status
+                    $pdo->prepare("UPDATE bookings SET payment_status = 'refunded' WHERE id = ?")
+                        ->execute([$booking_id]);
+
+                    $refund_msg = " A refund of ₹" . number_format($refund_amount, 2) . " has been credited to your wallet.";
+                    createNotification($pdo, $user_id, "Booking #$booking_id cancelled. ₹$refund_amount refunded to wallet.", 'success');
                 }
 
-                $_SESSION['success'] = 'Booking cancelled successfully.';
+                if ($booking['helper_id']) {
+                    createNotification($pdo, $booking['helper_id'], "Booking #$booking_id has been cancelled by the user.", 'error');
+                } else {
+                    // Notify all helpers who applied
+                    $stmt = $pdo->prepare("SELECT helper_id FROM booking_requests WHERE booking_id = ? AND status = 'accepted'");
+                    $stmt->execute([$booking_id]);
+                    $applicants = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    foreach ($applicants as $app_id) {
+                        createNotification($pdo, $app_id, "Booking #$booking_id that you applied for has been cancelled by the user.", 'warning');
+                    }
+                    // Mark requests as rejected or cancelled
+                    $pdo->prepare("UPDATE booking_requests SET status = 'rejected' WHERE booking_id = ? AND status = 'accepted'")
+                        ->execute([$booking_id]);
+                }
+
+                $pdo->commit();
+                $_SESSION['success'] = 'Booking cancelled successfully.' . $refund_msg;
             } else {
+                $pdo->rollBack();
                 $_SESSION['error'] = 'Invalid booking or cannot cancel this booking.';
             }
             header('Location: ../dashboard.php');
             exit;
         } catch (PDOException $e) {
-            $_SESSION['error'] = 'Failed to cancel booking.';
+            if ($pdo->inTransaction())
+                $pdo->rollBack();
+            $_SESSION['error'] = 'Failed to cancel booking: ' . $e->getMessage();
             header('Location: ../dashboard.php');
             exit;
         }
@@ -493,6 +539,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$bundle_id]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode(['success' => true, 'items' => $items]);
+        exit;
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit;
+    }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'get_applicants') {
+    $booking_id = $_GET['booking_id'] ?? 0;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT r.*, u.name, u.profile_photo, u.bio, u.phone_number, u.address, u.gender,
+            (SELECT COUNT(*) FROM bookings WHERE helper_id = u.id AND status = 'completed') as completed_jobs_count,
+            (SELECT AVG(rating) FROM reviews WHERE booking_id IN (SELECT id FROM bookings WHERE helper_id = u.id)) as average_rating
+            FROM booking_requests r
+            JOIN users u ON r.helper_id = u.id
+            WHERE r.booking_id = ? AND r.status = 'accepted'
+        ");
+        $stmt->execute([$booking_id]);
+        $applicants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(['success' => true, 'applicants' => $applicants]);
         exit;
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
