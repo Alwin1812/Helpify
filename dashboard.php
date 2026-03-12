@@ -452,16 +452,26 @@ $all_bundles = $stmt->fetchAll();
     <header>
         <div
             style="width: 100%; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; height: 100%;">
-            <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
-                <span
-                    style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
-            </a>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="backBtn" class="material-icons"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding: 5px;"
+                    onclick="showSection('dashboard')">arrow_back</button>
+                <button id="menuBtn" class="material-icons menu-btn"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding: 5px;">menu</button>
+                <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                    <span
+                        style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+                </a>
+            </div>
             <nav class="nav-links" style="display: flex; align-items: center;">
-                <span>Welcome, <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b></span>
+                <span class="welcome-text">Welcome,
+                    <b><?php echo htmlspecialchars($_SESSION['user_name']); ?></b></span>
                 <a href="api/logout.php" class="btn btn-primary" style="margin-left: 1rem;">Logout</a>
             </nav>
         </div>
     </header>
+
+    <div id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
     <div class="dashboard-layout">
         <!-- Sidebar -->
@@ -1503,6 +1513,23 @@ $all_bundles = $stmt->fetchAll();
     </div>
 
     <script>
+        function toggleSidebar(force) {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (force === undefined) {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            } else if (force) {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+            } else {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            }
+        }
+
+        document.getElementById('menuBtn').addEventListener('click', () => toggleSidebar());
+
         function showSection(sectionId) {
             document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -1522,6 +1549,20 @@ $all_bundles = $stmt->fetchAll();
 
             if (sectionId === 'complaints') loadComplaints();
             if (sectionId === 'wallet') loadWalletHistory();
+
+            // Handle back/menu button visibility on mobile
+            if (window.innerWidth <= 768) {
+                const backBtn = document.getElementById('backBtn');
+                const menuBtn = document.getElementById('menuBtn');
+                if (sectionId === 'dashboard') {
+                    backBtn.style.display = 'none';
+                    menuBtn.style.display = 'block';
+                } else {
+                    backBtn.style.display = 'block';
+                    menuBtn.style.display = 'none';
+                }
+                toggleSidebar(false);
+            }
         }
 
         // Modal Logic
@@ -2886,32 +2927,32 @@ $all_bundles = $stmt->fetchAll();
 
         window.addEventListener('load', function () {
             <?php if (isset($bundle_to_load) && !empty($bundle_to_load)): ?>
-                console.log('Bundle detected:', <?php echo json_encode($bundle_to_load); ?>);
-                // Clear existing cart
-                cart = [];
+                    console.log('Bundle detected:', <?php echo json_encode($bundle_to_load); ?>);
+                    // Clear existing cart
+                    cart = [];
 
-                // Load bundle items
-                <?php foreach ($bundle_to_load as $item): ?>
-                    cart.push({
-                        id: <?php echo $item['service_id']; ?>,
-                        name: '<?php echo addslashes($item['service_name']); ?>',
-                        price: <?php echo $item['base_price']; ?>
-                    });
-                <?php endforeach; ?>
+                    // Load bundle items
+                    <?php foreach ($bundle_to_load as $item): ?>
+                            cart.push({
+                                id: <?php echo $item['service_id']; ?>,
+                                name: '<?php echo addslashes($item['service_name']); ?>',
+                                price: <?php echo $item['base_price']; ?>
+                            });
+                    <?php endforeach; ?>
 
-                // Set discount if applicable
-                const discountPct = <?php echo $bundle_to_load[0]['discount_percentage']; ?>;
-                if (discountPct > 0) {
-                    activePromo = {
-                        discount_type: 'percentage',
-                        discount_value: discountPct,
-                        min_order_amount: 0,
-                        code: 'BUNDLE_DISCOUNT'
-                    };
-                }
+                    // Set discount if applicable
+                    const discountPct = <?php echo $bundle_to_load[0]['discount_percentage']; ?>;
+                    if (discountPct > 0) {
+                        activePromo = {
+                            discount_type: 'percentage',
+                            discount_value: discountPct,
+                            min_order_amount: 0,
+                            code: 'BUNDLE_DISCOUNT'
+                        };
+                    }
 
-                updateCartUI();
-                openBookingModal();
+                    updateCartUI();
+                    openBookingModal();
             <?php endif; ?>
         });
     </script>

@@ -24,7 +24,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] != 'helper') {
 <body>
     <header>
         <div class="container flex justify-between items-center" style="height: 100%;">
-            <a href="index.php" class="logo">Helpify</a>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <a href="index.php" class="back-btn material-icons"
+                    style="display: none; text-decoration: none; color: #111827; font-size: 1.8rem;">arrow_back</a>
+                <a href="index.php" class="logo">Helpify</a>
+            </div>
         </div>
     </header>
 

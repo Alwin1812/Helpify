@@ -36,6 +36,8 @@ session_start();
     <header class="uc-header">
         <div class="header-container">
             <div class="header-left">
+                <a href="index.php" class="back-btn material-icons"
+                    style="display: none; text-decoration: none; color: #111827; font-size: 1.8rem; margin-right: 0.5rem; vertical-align: middle;">arrow_back</a>
                 <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
                     <span
                         style="background: black; color: white; padding: 4px 8px; border-radius: 6px; margin-right: 8px; font-weight: 700; font-size: 1.1rem; line-height: 1;">HF</span>

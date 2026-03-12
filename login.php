@@ -33,6 +33,8 @@
     <header class="uc-header">
         <div class="header-container">
             <div class="header-left">
+                <a href="index.php" class="back-btn material-icons"
+                    style="display: none; text-decoration: none; color: #111827; font-size: 1.8rem; margin-right: 0.5rem; vertical-align: middle;">arrow_back</a>
                 <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
                     <span
                         style="background: black; color: white; padding: 4px 8px; border-radius: 6px; margin-right: 8px; font-weight: 700; font-size: 1.1rem; line-height: 1;">HF</span>
@@ -109,11 +111,10 @@
                         $google_login_url = '#';
                     }
                     ?>
-                    
-                    <a href="<?php echo $google_login_url; ?>" 
-                       <?php if (!$is_google_configured) echo 'onclick="alert(\'Please configure Google Client ID and Secret in includes/google_config.php first!\'); return false;"'; ?>
-                       class="btn btn-block"
-                       style="background-color: #fff; color: #374151; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 1rem; border-radius: 8px; font-weight: 500; transition: all 0.2s ease;">
+
+                    <a href="<?php echo $google_login_url; ?>" <?php if (!$is_google_configured)
+                           echo 'onclick="alert(\'Please configure Google Client ID and Secret in includes/google_config.php first!\'); return false;"'; ?> class="btn btn-block"
+                        style="background-color: #fff; color: #374151; border: 1px solid #D1D5DB; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 1rem; border-radius: 8px; font-weight: 500; transition: all 0.2s ease;">
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google"
                             style="width: 20px; height: 20px;">
                         Sign in with Google

@@ -565,10 +565,47 @@ if ($role_filter === 'complaints') {
         .close-chat:hover {
             opacity: 1;
         }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                left: -260px;
+                transition: left 0.3s ease;
+            }
+
+            .sidebar.active {
+                left: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .menu-btn {
+                display: block !important;
+            }
+
+            #sidebarOverlay.active {
+                display: block;
+            }
+        }
+
+        #sidebarOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 45;
+            backdrop-filter: blur(2px);
+        }
     </style>
 </head>
 
 <body>
+    <div id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
@@ -644,7 +681,14 @@ if ($role_filter === 'complaints') {
     <!-- Main Content -->
     <main class="main-content">
         <header class="top-header">
-            <h2 style="font-size: 1.25rem;">Overview</h2>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="backBtn" class="material-icons"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding: 5px;"
+                    onclick="window.location.href='admin_dashboard.php?role=all'">arrow_back</button>
+                <button id="menuBtn" class="material-icons menu-btn"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding:5px;">menu</button>
+                <h2 style="font-size: 1.25rem;">Overview</h2>
+            </div>
             <!-- Additional header actions if needed -->
         </header>
 
@@ -1697,6 +1741,39 @@ if ($role_filter === 'complaints') {
 
         document.getElementById('adminComplaintInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendAdminComplaintMessage();
+        });
+
+        function toggleSidebar(force) {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (force === undefined) {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            } else if (force) {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+            } else {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            }
+        }
+
+        document.getElementById('menuBtn').addEventListener('click', () => toggleSidebar());
+
+        // Handle back button on mobile
+        window.addEventListener('DOMContentLoaded', () => {
+            if (window.innerWidth <= 1024) {
+                const role = '<?php echo $role_filter; ?>';
+                const backBtn = document.getElementById('backBtn');
+                const menuBtn = document.getElementById('menuBtn');
+                if (role !== 'all' && role !== '') {
+                    backBtn.style.display = 'block';
+                    menuBtn.style.display = 'none';
+                } else {
+                    backBtn.style.display = 'none';
+                    menuBtn.style.display = 'block';
+                }
+            }
         });
     </script>
 </body>

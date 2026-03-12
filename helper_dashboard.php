@@ -136,12 +136,19 @@ $my_jobs = $stmt->fetchAll();
 <body>
     <header>
         <div class="container flex justify-between items-center" style="height: 100%; width: 100%;">
-            <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
-                <span
-                    style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
-            </a>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button id="backBtn" class="material-icons"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding: 5px;"
+                    onclick="showSection('dashboard')">arrow_back</button>
+                <button id="menuBtn" class="material-icons menu-btn"
+                    style="display: none; background: none; border: none; font-size: 1.8rem; cursor: pointer; color: #111827; padding: 5px;">menu</button>
+                <a href="index.php" class="logo" style="text-decoration: none; display: flex; align-items: center;">
+                    <span
+                        style="color: #111827; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">HELPIFY</span>
+                </a>
+            </div>
             <nav class="nav-links" style="display: flex; align-items: center; gap: 1rem;">
-                <span style="font-size: 0.9rem; color: var(--text-light);">
+                <span class="welcome-text" style="font-size: 0.9rem; color: var(--text-light);">
                     Helper • <b
                         style="color: var(--text-color);"><?php echo htmlspecialchars($_SESSION['user_name']); ?></b>
                 </span>
@@ -168,6 +175,8 @@ $my_jobs = $stmt->fetchAll();
             </div>
         </div>
     <?php endif; ?>
+
+    <div id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
     <div class="dashboard-layout">
         <!-- Sidebar -->
@@ -802,6 +811,23 @@ $my_jobs = $stmt->fetchAll();
     </div>
 
     <script>
+        function toggleSidebar(force) {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (force === undefined) {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            } else if (force) {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+            } else {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            }
+        }
+
+        document.getElementById('menuBtn').addEventListener('click', () => toggleSidebar());
+
         function showSection(sectionId) {
             document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -817,6 +843,20 @@ $my_jobs = $stmt->fetchAll();
             const navItems = document.querySelectorAll('.nav-item');
             if (navItems[indexMap[sectionId]]) {
                 navItems[indexMap[sectionId]].classList.add('active');
+            }
+
+            // Handle back/menu button visibility on mobile
+            if (window.innerWidth <= 768) {
+                const backBtn = document.getElementById('backBtn');
+                const menuBtn = document.getElementById('menuBtn');
+                if (sectionId === 'dashboard') {
+                    backBtn.style.display = 'none';
+                    menuBtn.style.display = 'block';
+                } else {
+                    backBtn.style.display = 'block';
+                    menuBtn.style.display = 'none';
+                }
+                toggleSidebar(false);
             }
         }
     </script>
